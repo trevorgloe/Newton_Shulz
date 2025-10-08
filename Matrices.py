@@ -1,5 +1,6 @@
 import numpy as np
 import time
+import matplotlib.pyplot as plt
 
 def split(A):
     D = np.diag(np.diag(A))
@@ -14,20 +15,24 @@ def Gauss_Seidel(A, b):
     M = D - L
     N = U
     
+    allx = []
     x = np.zeros_like(b) #is this right?
+    allx.append(x)
     
     loops = 100
     for i in range(loops):
         x = np.linalg.solve(M, N @ x + b)
+        allx.append(x)
+        # Mx = Nx + b
+        # M inverse is too general of a solution, can solve for any b
         #   1. Compute the right-hand side = Nx + b
         #   2. Solve the lower-triangular system M * x_new = (N @ x + b)
         # more efficient than actually solving M inv. instead we just kind of avid inverse by putting it on left side
-
     end_time = time.perf_counter()
     elapsed_time = end_time - start_time
     print(f"Gauss_Seidel took {elapsed_time:.4f}  seconds to execute.")
 
-    return x
+    return (x, allx)
 
 def direct(A, b):
     start_time = time.perf_counter()
@@ -60,6 +65,7 @@ A2 = np.array([[10., 1., 1.],
                [2., 2., 10.]])
 b2 = np.array([12., 13., 14.])
 
+
 A3 = np.array([[10., 1., 1., 2., 3., 4., 5., 6., 7., 8., 8., 9., 10.],
                [2., 10., 1., 0., 1., 5., 6., 7., 1., 4., 2., 5., 7.],
                [2., 10., 2., 0., 1., 5., 6., 7., 1., 4., 2., 5., 8.],
@@ -74,6 +80,8 @@ A3 = np.array([[10., 1., 1., 2., 3., 4., 5., 6., 7., 8., 8., 9., 10.],
                [5., 10., 1., 0., 1., 9., 6., 7., 1., 4., 2., 5., 7.],
                [6., 2., 10., 10., 10., 10., 2., 2., 2., 2., 3., 4., 9.]])
 b3 = np.array([12., 13., 14., 15., 16., 17., 18., 19., 20., 21., 22., 23., 25.])
+
+print("eigen stuff: ", np.linalg.eig(A3)) # check for Minv*N, but not needed bc we shouldn't be getting Minv and if it's <= 1
 
 A4 = np.array([
     [20., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1.],
@@ -93,7 +101,10 @@ A4 = np.array([
 
 b4 = np.array([32., 32., 32., 32., 32., 32., 32., 32., 32., 32., 32., 32., 32.])
 
+A5 = np.random.rand(10,10) # better randn for bell curve
+b5 = np.random.rand(10)
 
+#------------------------------
 
 # Gx1 = Gauss_Seidel(A1, b1)
 # Dx1 = direct(A1, b1)
@@ -113,6 +124,11 @@ print("Test 3: \n", Gx3)
 print(Dx3)
 print("Gauss_Seidel: ", validate(A3,Gx3,b3))
 print("Direct: ", validate(A3,Dx3,b3))
+# get array of errors
+
+plt.figure()
+plt.plot()#vector of errors
+# use plt to graph errors
 
 
 
