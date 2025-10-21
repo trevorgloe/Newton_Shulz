@@ -50,10 +50,53 @@ def direct(A, b):
 
     return x
 
-def validate(A, x, b):
-    value = A@x
-    p_error = 100*(np.linalg.norm(value-b)/np.linalg.norm(b))
-    return(f"Ax = \n{value} \nb = {b} \n%error = {p_error}")
+def Newton_Shulz(A):
+    start_time = time.perf_counter()
+    I = np.eye(A.shape[0])  # Identity matrix with size of A
+    
+    # Very small initial guess, I'm not sure why we need to do this, but it works.
+    alpha = 0.01
+    G = alpha * I
+    
+    allG = []
+    allG.append(G)
+    
+    loops = 20  # Even fewer iterations
+    for i in range(loops):
+        try:
+            # Newton-Schulz iteration: G = G + (I - G@A)@G
+            G_new = G + (I - G @ A) @ G
+            
+            # Check for overflow/underflow
+            if np.any(np.isnan(G_new)) or np.any(np.isinf(G_new)):
+                print(f"Newton-Schulz diverged at iteration {i}")
+                break
+                
+            G = G_new
+            allG.append(G)
+            
+            # Early stopping if we're getting reasonable results
+            # if i > 5:  # After a few iterations, check convergence
+            #     error = np.linalg.norm(A @ x - b)
+            #     if error < 1e-6:  # Good enough
+            #         print(f"Newton-Schulz converged at iteration {i}")
+            #         break
+            
+        except (OverflowError, RuntimeWarning): #float(32 bits) vs double(64 bits)
+            print(f"Newton-Schulz overflowed at iteration {i}")
+            break
+    
+    end_time = time.perf_counter()
+    elapsed_time = end_time - start_time
+    print(f"Newton_Shulz took {elapsed_time:.4f}  seconds to execute.")
+
+    return (G, allG)
+
+def validate(A, G):
+    value = A@G
+    I = np.eye(A.shape[0])
+    p_error = (np.linalg.norm(value-I))
+    return("error: ", p_error)
 
 A1 = np.array([[4., 1., 0.],
                [1., 3., 1.],
@@ -81,7 +124,7 @@ A3 = np.array([[10., 1., 1., 2., 3., 4., 5., 6., 7., 8., 8., 9., 10.],
                [6., 2., 10., 10., 10., 10., 2., 2., 2., 2., 3., 4., 9.]])
 b3 = np.array([12., 13., 14., 15., 16., 17., 18., 19., 20., 21., 22., 23., 25.])
 
-print("eigen stuff: ", np.linalg.eig(A3)) # check for Minv*N, but not needed bc we shouldn't be getting Minv and if it's <= 1
+# print("eigen stuff: ", np.linalg.eig(A3)) # check for Minv*N, but not needed bc we shouldn't be getting Minv and if it's <= 1
 
 A4 = np.array([
     [20., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1.],
@@ -118,15 +161,27 @@ b5 = np.random.rand(10)
 # print(Dx2)
 
 
-Gx3 = Gauss_Seidel(A3, b3)
-Dx3 = direct(A3, b3)
-print("Test 3: \n", Gx3)
-print(Dx3)
-print("Gauss_Seidel: ", validate(A3,Gx3,b3))
-print("Direct: ", validate(A3,Dx3,b3))
+# Gx3 = Gauss_Seidel(A3, b3)
+# Dx3 = direct(A3, b3)
+# print("Test 3: \n", Gx3)
+# print(Dx3)
+# print("Gauss_Seidel: ", validate(A3,Gx3,b3))
+# print("Direct: ", validate(A3,Dx3,b3))
 # get array of errors
 
-plt.figure()
+# Test with a simpler matrix first
+print("Testing Newton-Schulz with A1 (3x3 matrix):")
+Newx1, Newx1_all = Newton_Shulz(A1)
+print(Newx1)
+print(Newx1@A1)
+print(validate(A1,Newx1))
+# print("Newton_Shulz A1: ", validate(A1,Newx1,b1))
+
+print("\nTesting Newton-Schulz with A4 (13x13 matrix):")
+Newx4, Newx4_all = Newton_Shulz(A4)
+
+
+plt.figure() # try making a plot of the errors for each iteration
 plt.plot()#vector of errors
 # use plt to graph errors
 
