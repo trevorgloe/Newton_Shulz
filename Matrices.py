@@ -1,102 +1,8 @@
+import os
 import numpy as np
-import time
 import matplotlib.pyplot as plt
 
-def split(A):
-    D = np.diag(np.diag(A))
-    L = -np.tril(A, k = -1)
-    U = -np.triu(A, k = 1)
-    return (D, L, U)
-    # print("D=\n", D, "\nL=\n", L, "\nU=\n", U)
-
-def Gauss_Seidel(A, b):
-    start_time = time.perf_counter()
-    (D, L, U) = split(A)
-    M = D - L
-    N = U
-    
-    allx = []
-    x = np.zeros_like(b) #is this right?
-    allx.append(x)
-    
-    loops = 100
-    for i in range(loops):
-        x = np.linalg.solve(M, N @ x + b)
-        allx.append(x)
-        # Mx = Nx + b
-        # M inverse is too general of a solution, can solve for any b
-        #   1. Compute the right-hand side = Nx + b
-        #   2. Solve the lower-triangular system M * x_new = (N @ x + b)
-        # more efficient than actually solving M inv. instead we just kind of avid inverse by putting it on left side
-    end_time = time.perf_counter()
-    elapsed_time = end_time - start_time
-    print(f"Gauss_Seidel took {elapsed_time:.4f}  seconds to execute.")
-
-    return (x, allx)
-
-def direct(A, b):
-    start_time = time.perf_counter()
-    
-    x = np.zeros_like(b)
-    
-    x = np.linalg.solve(A, b)
-    #   1. Compute the right-hand side = Nx + b
-    #   2. Solve the lower-triangular system M * x_new = (N @ x + b)
-    # more efficient than actually solving M inv. instead we just kind of avid inverse by putting it on left side
-
-    end_time = time.perf_counter()
-    elapsed_time = end_time - start_time
-    print(f"Direct took {elapsed_time:.4f}  seconds to execute.")
-
-    return x
-
-def Newton_Shulz(A):
-    start_time = time.perf_counter()
-    I = np.eye(A.shape[0])  # Identity matrix with size of A
-    
-    # Very small initial guess, I'm not sure why we need to do this, but it works.
-    alpha = 0.01
-    G = alpha * I
-    
-    allG = []
-    allG.append(G)
-    
-    loops = 20  # Even fewer iterations
-    for i in range(loops):
-        try:
-            # Newton-Schulz iteration: G = G + (I - G@A)@G
-            G_new = G + (I - G @ A) @ G
-            
-            # Check for overflow/underflow
-            if np.any(np.isnan(G_new)) or np.any(np.isinf(G_new)):
-                print(f"Newton-Schulz diverged at iteration {i}")
-                break
-                
-            G = G_new
-            allG.append(G)
-            
-            # Early stopping if we're getting reasonable results
-            # if i > 5:  # After a few iterations, check convergence
-            #     error = np.linalg.norm(A @ x - b)
-            #     if error < 1e-6:  # Good enough
-            #         print(f"Newton-Schulz converged at iteration {i}")
-            #         break
-            
-        except (OverflowError, RuntimeWarning): #float(32 bits) vs double(64 bits)
-            print(f"Newton-Schulz overflowed at iteration {i}")
-            break
-    
-    end_time = time.perf_counter()
-    elapsed_time = end_time - start_time
-    print(f"Newton_Shulz took {elapsed_time:.4f}  seconds to execute.")
-
-    return (G, allG)
-
-def validate(A, G):
-    value = A@G
-    I = np.eye(A.shape[0])
-    p_error = (np.linalg.norm(value-I))
-    return("error: ", p_error)
+import matrix_functions as mf
 
 A1 = np.array([[4., 1., 0.],
                [1., 3., 1.],
@@ -169,21 +75,72 @@ b5 = np.random.rand(10)
 # print("Direct: ", validate(A3,Dx3,b3))
 # get array of errors
 
-# Test with a simpler matrix first
-print("Testing Newton-Schulz with A1 (3x3 matrix):")
-Newx1, Newx1_all = Newton_Shulz(A1)
-print(Newx1)
-print(Newx1@A1)
-print(validate(A1,Newx1))
-# print("Newton_Shulz A1: ", validate(A1,Newx1,b1))
-
-print("\nTesting Newton-Schulz with A4 (13x13 matrix):")
-Newx4, Newx4_all = Newton_Shulz(A4)
+def generate_random_matrix(size: int = 2048, seed: int | None = None) -> np.ndarray:
+    rng = np.random.default_rng(seed)
+    data = rng.standard_normal((size, size))
+    return data @ data.T + size * np.eye(size)
 
 
-plt.figure() # try making a plot of the errors for each iteration
-plt.plot()#vector of errors
-# use plt to graph errors
+def run_newton_shulz_case(
+    matrix: np.ndarray,
+    label: str,
+    *,
+    loops: int = 20,
+    collect_errors: bool = True,
+):
+    print("condition number: ",np.linalg.cond(matrix))
+    print(f"\nTesting Newton-Schulz with {label}:")
+    approx_inv, history, iterations = mf.Newton_Shulz(matrix, loops=loops)
+    print(mf.validate(matrix, approx_inv))
+    if collect_errors:
+        errors = mf.compute_errors_per_iteration(matrix, history)
+        print(f"{label} errors: {errors}")
+        print("Interations: ", iterations)
+        return errors
+    return None
 
 
+def main():
+    errors = {}
 
+    result = run_newton_shulz_case(A1, "A1 (3x3 matrix)")
+    if result is not None:
+        errors["A1 (3x3)"] = result
+
+    result = run_newton_shulz_case(A4, "A4 (13x13 matrix)")
+    if result is not None:
+        errors["A4 (13x13)"] = result
+
+    data_folder = "mike_data"
+    for file_name in ("B_inv_1.npy", "B_inv_2.npy"):
+        matrix = np.load(os.path.join(data_folder, file_name)).squeeze()
+        label = f"{file_name} (loaded)"
+        result = run_newton_shulz_case(matrix, label)
+        if result is not None:
+            errors[label] = result
+
+    random_matrix = generate_random_matrix()
+    run_newton_shulz_case(
+        random_matrix,
+        "Random 2048x2048 matrix",
+        loops=10,
+        collect_errors=False,
+    )
+
+    plt.figure(figsize=(10, 6))
+    for label, err_values in errors.items():
+        if err_values is None:
+            continue
+        plt.plot(err_values, marker="o", linewidth=2, markersize=4, label=label)
+    plt.xlabel("Iteration", fontsize=12)
+    plt.ylabel("Error ||A @ G - I||", fontsize=12)
+    plt.title("Newton-Schulz Convergence: Error vs Iteration", fontsize=14)
+    plt.legend(fontsize=11)
+    plt.grid(True, alpha=0.3)
+    plt.yscale("log")
+    plt.tight_layout()
+    plt.show()
+
+
+if __name__ == "__main__":
+    main()
