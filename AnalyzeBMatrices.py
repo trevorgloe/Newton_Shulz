@@ -188,6 +188,9 @@ def plot_matrix_relationships(relationships):
     #  Try to find when x until it converges
     # many original R's and many perturbation values and see when it diverges
     # chance or cutoff?
+    # Condition number: tells us how "close to singular" the matrix is
+        # Ratio of how big A can scale smth to how small it can scale smth
+        # Large condition number = matrix is close to singular = hard to invert accurately
 
     """
     Plot how matrices change from one to the next.
@@ -310,7 +313,9 @@ def main():
 
 if __name__ == "__main__":
     # Run the main analysis
-    results, relationships, properties = main()
+    result = main()
+    if result is not None:
+        results, relationships, properties = result
     
     # You can also test on individual matrices here if you want
     # For example:

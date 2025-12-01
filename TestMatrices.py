@@ -1,7 +1,7 @@
 from pathlib import Path
 import time
 
-import Matrices as M  # noqa: F401  # keep side effects for plotting/manual runs
+import Matrices as M
 import numpy as np
 
 import matrix_functions as mf
