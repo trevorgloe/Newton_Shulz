@@ -37,17 +37,6 @@ def load_B_matrices(data_folder="B_Binv_Mike"):
 
 # Running Newton Schulz & Compting Errors
 
-def compute_errors_per_iteration(A, allG):
-    I = np.eye(A.shape[0])
-    errors = []
-    
-    for G in allG:
-        AG = A @ G
-        
-        error = np.linalg.norm(AG - I)
-        errors.append(error)
-    
-    return errors
 
 
 def run_newton_schulz_with_errors(A, matrix_name=""):
@@ -55,7 +44,7 @@ def run_newton_schulz_with_errors(A, matrix_name=""):
     
     G, allG, iterations = mf.Newton_Shulz(A)
     
-    errors = compute_errors_per_iteration(A, allG)
+    errors = mf.compute_errors_per_iteration(A, allG)
     
     # Print the final error with 6 digits after decimal
     final_error = errors[-1]
@@ -283,7 +272,7 @@ def main():
         G, allG, iterations = mf.Newton_Shulz(B, loops=2000, initial_guess=initial_guess)
         
         # Compute errors for each iteration
-        errors = compute_errors_per_iteration(B, allG)
+        errors = mf.compute_errors_per_iteration(B, allG)
         
         # Validate final result
         error_msg, final_error = mf.validate(B, G)
@@ -311,17 +300,33 @@ def main():
     
     return results, relationships, properties
 
+
+# ============================================================================
+# MAIN EXECUTION
+# ============================================================================
+
 if __name__ == "__main__":
-    # Run the main analysis
+    # ========================================================================
+    # MAIN ANALYSIS: Analyze B matrices from folder
+    # ========================================================================
     result = main()
     if result is not None:
         results, relationships, properties = result
     
-    # You can also test on individual matrices here if you want
-    # For example:
+    # ========================================================================
+    # OPTIONAL: Test individual matrices
+    # ========================================================================
+    # Uncomment to test a specific matrix:
     # matrices = load_B_matrices("B_Binv_Mike")
     # B1 = matrices["B_inv_1"]
     # G1, allG1, errors1 = run_newton_schulz_with_errors(B1, "B_inv_1")
     # plot_convergence({"B_inv_1": errors1})
+    
+    # ========================================================================
+    # OPTIONAL: Test perturbation robustness
+    # ========================================================================
+    # To run perturbation testing, use the separate PerturbationTest.py file:
+    #   python PerturbationTest.py
+    # ========================================================================
 
 

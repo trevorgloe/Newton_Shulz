@@ -64,7 +64,7 @@ def Newton_Shulz(A: ArrayLike, loops: int = 2000, initial_guess: ArrayLike | Non
         try:
             # Newton-Schulz iteration: G_{k+1} = G_k + (I - G_k @ A) @ G_k
             G_new = G + (I - G @ A) @ G
-            if np.any(np.isnan(G_new)) or np.any(np.isinf(G_new) or np > 1e20):
+            if np.any(np.isnan(G_new)) or np.any(np.isinf(G_new)) or np.any(G_new > 1e20):
                 print(f"Newton-Schulz diverged at iteration {i}")
                 break
             G = G_new
