@@ -1,61 +1,35 @@
 """
-Perturbation Robustness Testing
+Perturbation Testing
 
-This module implements the experiment described in the comments in 
-AnalyzeBMatrices.py plot_matrix_relationships(). It tests how much a matrix 
-can be perturbed before Newton-Schulz diverges when using the original 
+This module tests how much a matrix 
+can be perturbed before Newton-Schulz diverges when using the original (unperturbed)
 matrix's inverse as the initial guess.
 
-The idea: If you have matrix R and its inverse R_inv, how much can you
-change R before R_inv becomes a bad initial guess for Newton-Schulz?
-This helps understand the robustness of using previous inverses as warm starts.
-
 Experiment explanation:
-1. Generate random matrix R, compute R_inv using numpy (the "ground truth" inverse)
+1. Generate random matrix R, compute R_inv using numpy
 2. Perturb R: R_perturbed = R + x * P 
-   - P is a random perturbation matrix
+   - P is a random perturbation matrix (maybe with a set norm or else it'll essentially have it's own scaling already without x)
    - x is a scaling factor (0 to max_perturbation)
 3. Run Newton-Schulz on R_perturbed using R_inv as initial guess
 4. Find the threshold x where it stops converging (diverges)
 5. Repeat for many random matrices to find patterns
 
-Purpose:
-- Measures robustness: How much can B change before B_inv_{x-1} becomes useless?
-- Finds safety margins: What perturbation size causes divergence?
-- Tests condition number correlation: Do higher condition numbers = lower threshold?
-- Validates warm-start strategy: When does using previous inverse help vs hurt?
-
 Chart Explanations:
-The test generates 4 plots to visualize the results:
-
-1. "Robustness: How Much Can Matrix Change?" (Top Left - Scatter Plot)
+1. "Robustness: How Much Can Matrix Change?" (Left - Scatter Plot)
    - X-axis: Condition number of the original matrix R
    - Y-axis: Maximum perturbation value where Newton-Schulz still converges
    - What it shows: Whether matrices with higher condition numbers (more ill-conditioned)
      can handle less perturbation before diverging. If points trend downward, it means
-     ill-conditioned matrices are less robust. Each point is one test matrix.
+     ill-conditioned matrices are less robust (basically that they can't handle big perturbations). Each point is one test matrix.
 
-2. "Convergence vs Perturbation" (Top Right - Line Plot)
+2. "Convergence vs Perturbation" (Right - Line Plot)
    - X-axis: Perturbation size (x value from R + x*P)
-   - Y-axis: Binary (1 = converged, 0 = diverged)
-   - What it shows: For each sample matrix, at what perturbation size does it stop
-     converging? You'll see lines that start at 1 (converged) and drop to 0 (diverged)
-     at the threshold. The x-value where it drops is the convergence threshold for that matrix.
-
-3. "Final Error vs Perturbation" (Bottom Left - Line Plot)
-   - X-axis: Perturbation size (x value)
-   - Y-axis: Final error ||R_perturbed @ G - I|| (log scale)
-   - What it shows: For cases that converged, how does the final error grow as you
-     increase perturbation? Even if it converges, larger perturbations may lead to
-     higher errors. This shows the quality of convergence, not just whether it converges.
-
-4. "Distribution of Convergence Thresholds" (Bottom Right - Histogram)
-   - X-axis: Convergence threshold values
-   - Y-axis: Number of matrices with that threshold
-   - What it shows: The spread of convergence thresholds across all test matrices.
-     A narrow distribution means most matrices have similar robustness. A wide
-     distribution means robustness varies a lot between matrices.
+   - Y-axis: Divergence/Convergence speed (still trying to adjust)
+   - What it shows: For each random perturbation matrix P with perturbation size as the x-axis, when/how fast does it converge
 """
+
+# spectral radius of convergence,
+# only meant to be a thing between 0 and 1 perturbation
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -80,7 +54,7 @@ def test_perturbation_robustness(n_matrices=10, matrix_size=50, max_perturbation
         - 'convergence_data': list of dicts
     """
     print("="*60)
-    print("TESTING PERTURBATION ROBUSTNESS")
+    print("TESTING PERTURBATION")
     print("="*60)
     print(f"Testing {n_matrices} random {matrix_size}x{matrix_size} matrices")
     print(f"Perturbation range: 0 to {max_perturbation}")
@@ -104,12 +78,12 @@ def test_perturbation_robustness(n_matrices=10, matrix_size=50, max_perturbation
         # - Each point on left graph = one matrix with its condition number (x) and threshold (y)
         np.random.seed(matrix_idx)
         scaling_factor = 0.1 + (matrix_idx / n_matrices) * 2.9  # Range: 0.1 to 3.0
-        R = np.random.randn(matrix_size, matrix_size) + scaling_factor * np.eye(matrix_size)
+        R = np.random.randn(matrix_size, matrix_size) + scaling_factor * np.eye(matrix_size) # can divide R by its norm so its magnitude 1, adding identity reduces perturbation
         
         # Compute inverse
         try:
             R_inv = np.linalg.inv(R)
-        except np.linalg.LinAlgError:
+        except np.linalg.LinAlgError: # don't use as much, this is avoidable, and not necessarily singular
             print(f"  Matrix {matrix_idx + 1} is singular, skipping...")
             continue
         
@@ -118,6 +92,12 @@ def test_perturbation_robustness(n_matrices=10, matrix_size=50, max_perturbation
         
         # Generate perturbation matrix
         P = np.random.randn(matrix_size, matrix_size)
+        # magnitude of x * P, classical theory: if norm(x*P)<1, the you are GAURANTEED to converge; any orthogonal matrix has cond 1, not just I. maybe try to test
+        # look at stats of random matrices not the individual matrix to find trend
+        # many matries of same cond and random perturbation
+        # uniform distribution might have bad cond
+        # normally distributed, sqrt n is approx norm
+        # how to pick othorgonal matrix correctly
         
         # Test each perturbation value
         convergence_data = []
