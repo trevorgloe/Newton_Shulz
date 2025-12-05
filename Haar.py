@@ -87,7 +87,7 @@ def randOrth(n: int):
         # print(v)
         beta = 2 / np.dot(v,v)
 
-        H = np.eye(n-i) - beta * np.outer(v,v) 
+        # H = np.eye(n-i) - beta * np.outer(v,v) 
          
         # D[i:n,i:n] = D[i:n,i:n] - beta*np.outer((D[i:n,i:n]@v), v.T)
         # G[i:n,i:n] = G[i:n,i:n] @ H
