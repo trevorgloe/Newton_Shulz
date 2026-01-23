@@ -2,6 +2,7 @@ import numpy as np
 from typing import Callable
 from numpy.typing import NDArray
 import math
+import scipy.linalg as scil
 
 class Kernel:
     def __init__(self, fnc: Callable[[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]], float], n: int, fnc_prime: Callable[[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]], NDArray[np.float64]], theta_n: int):
@@ -46,6 +47,23 @@ class Kernel:
         
         return outmat
 
+    # compute dK / dtheta for every index (theta will be a vector of parameters and each one will have a different derivative matrix)
+    def compute_dKdtheta(self, x:NDArray[np.float64]):
+        # return a tensor where each 2d slice is a dK/dtheta matrix
+        if x.shape[1] != self.n:
+            raise ValueError("Number of columns do not match expected size of kernel matrix")
+
+        outtens = np.zeros((self.n, self.n, len(self.theta)))
+        for i in range(self.n):
+            for j in range(self.n):
+                if i > j:
+                    continue
+                
+                derivs = self.fnc_p(x[:,i], x[:,j], self.theta)
+                outtens[i,j,:] = derivs
+
+        return outtens
+
 
     def __repr__(self):
         s1 = f"Kernel object with dimension {self.n}x{self.n} and matrix:\n"
@@ -70,7 +88,7 @@ class GPR:
                 def ker_p(x, y, theta):
                     # theta[0] = sigma_f
                     # theta[1] = l
-                    out = np.zeros((1,2))
+                    out = np.zeros(2)
                     t = -1/(2*theta[1]) * np.dot(x-y,x-y)
                     out[0] = 2*theta[0] * math.exp(t)
                     out[1] = np.dot(x-y, x-y) * 1 / (2*theta[1]**2) * theta[0]**2 * math.exp(t)
@@ -105,6 +123,12 @@ class GPR:
         # assumes that the input data has already been initialized
         self.ker.compute(self.X)
 
+    # add data and fit to the data in one function
+    def fit(self, x:NDArray[np.float64], y:NDArray[np.float64], theta:NDArray[np.float64]):
+        self.set_theta(theta)
+        self.add_inputs(x, y)
+        self.create_K()
+
     # predict (after K has already been made)
     def predict_aft_K(self, x:NDArray[np.float64]):
         if x.ndim == 1:
@@ -116,3 +140,64 @@ class GPR:
         return K_star.T @ np.linalg.inv(Khat) @ self.y
 
 
+    # compute the derivative of the NEGATIVE log liklihood (for gradient descent optimization)
+    def log_like_der(self):
+        # formula is tr( (Khati - (Khati * y)(Khati * y)^T) * dKhat/dtheta)
+        # create the derivative matrices 
+        der_tens = self.ker.compute_dKdtheta(self.X) # nxnxt tensor where t is the number of parameters in theta vector
+        Khat = self.ker.mat + self.sig**2 * np.eye(self.n)
+        Khati = np.linalg.inv(Khat)
+
+        t = len(self.ker.theta)
+        outvec = np.zeros(t)
+        for i in range(t):
+            # term1 = 1/2 * self.y.T @ Khati @ der_tens[:,:,i] @ Khati @ self.y
+            # term2 = 1/2 * np.trace(Khati @ der_tens[:,:,i])
+            # outvec[i] = term1 - term2
+            m1 = np.outer(Khati @ self.y, Khati @ self.y)
+            outvec[i] = np.trace((Khati - m1) @ der_tens[:,:,i])
+
+        return outvec
+
+    # compute the log liklihood for the gaussian process
+    def log_like(self):
+        # formula is -1/2 * (y^T * Khati * y + tr(log(Khat)) + n*log(2pi)
+        Khat = self.ker.mat + self.sig**2 * np.eye(self.n)
+        Khati = np.linalg.inv(Khat)
+        logKhat = scil.logm(Khat)
+        term1 = self.y.T @ Khati @ self.y 
+        term2 = np.trace(logKhat) 
+        term3 = self.n*np.log(2*np.pi)
+        return -1/2 * (term1 + term2 + term3)
+
+    # do gradient descent to find the best theta in terms of the log liklihood
+    def grad_dec_theta(self, theta0, alpha:float, eps:float = 1e-5, return_theta:bool = False):
+        print("Running gradient descent with theta0 = ", theta0)
+        print(f"Using a stopping condition of ||nabla f||^2 < {eps}")
+        print(f"Using a step size of {alpha}")
+        theta = np.copy(theta0) # for storing iterations
+        self.set_theta(theta)
+        all_theta = []
+
+        nabla = np.zeros(self.ker.theta.shape)
+        nabla = self.log_like_der()
+        iter = 0
+        while (np.linalg.norm(nabla) > eps):
+            print(f"Iteration {iter}")
+            iter += 1
+            print("theta = ", theta)
+            print("log liklihood = ", self.log_like())
+            nabla = self.log_like_der()
+            theta = theta - alpha * nabla
+            self.set_theta(theta)
+            self.ker.compute(self.X)
+
+            if return_theta:
+                all_theta.append(theta)
+
+        print("Optimization complete")
+        if return_theta:
+            return all_theta
+
+        
+            
