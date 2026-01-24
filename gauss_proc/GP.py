@@ -171,13 +171,15 @@ class GPR:
         return -1/2 * (term1 + term2 + term3)
 
     # do gradient descent to find the best theta in terms of the log liklihood
-    def grad_dec_theta(self, theta0, alpha:float, eps:float = 1e-5, return_theta:bool = False):
+    def grad_dec_theta(self, theta0, alpha:float, eps:float = 1e-5, return_theta:bool = False, max_iter:int = 1000):
         print("Running gradient descent with theta0 = ", theta0)
         print(f"Using a stopping condition of ||nabla f||^2 < {eps}")
         print(f"Using a step size of {alpha}")
         theta = np.copy(theta0) # for storing iterations
         self.set_theta(theta)
+        self.ker.compute(self.X)
         all_theta = []
+        all_theta.append(theta)
 
         nabla = np.zeros(self.ker.theta.shape)
         nabla = self.log_like_der()
@@ -185,6 +187,8 @@ class GPR:
         while (np.linalg.norm(nabla) > eps):
             print(f"Iteration {iter}")
             iter += 1
+            if (iter > max_iter):
+                break
             print("theta = ", theta)
             print("log liklihood = ", self.log_like())
             nabla = self.log_like_der()
