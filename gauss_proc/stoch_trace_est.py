@@ -1,6 +1,6 @@
 import numpy as np
 from numpy.typing import NDArray
-from collections.abs import Callable
+from collections.abc import Callable
 
 # returns a rademacher distributed random vector
 def rademacher(n:int):
@@ -27,35 +27,66 @@ def STE(A:NDArray[np.float64], l:int):
 # returns T_m, to be used in the stochastic Lanczos quadrature method
 # this implimentation essentially copied from "Numerical Linear Algebra with Julia" - Eric Darve and Mary Wootters
 def Lanczos(A:NDArray[np.float64], v:NDArray[np.float64], m):
+    n = A.shape[0]
     T = np.zeros((m, m))
+    Q = np.zeros((n, m))
     r = np.copy(v)
+    # print(r)
+    # q1 = np.copy(v)
     beta = np.linalg.norm(r)
-    q1 = np.zeros(v.shape)
+    # Q[:,0] = r / beta
 
     for k in range(m):
-        q0 = np.copy(q1)
-        q1 = r / beta
+        q1 = np.copy(r)
+        q1 = q1 / beta
+        Q[:,k] = q1
+        # print(Q)
+
+        if k>0:
+            T[k-1,k] = beta
+            T[k,k-1] = beta
+
         r = A@q1
         alpha = np.dot(q1, r)
         T[k,k] = alpha
-        if k > 1:
-            T[k-1, k] = beta
-            T[k,k-1] = beta
+        for j in range(k+1):
+            val = np.dot(r, Q[:,j])
+            r = r - val * Q[:,j]
 
-        r = r - alpha*q1 - beta*q0
         beta = np.linalg.norm(r)
 
-    return T
+    return T, Q
 
 # estimates v^T A v via the gaussian quadrature method produced from the stochastic lanczos quadrature
 # estimates the quadratic form for a single vector
 def LancQuadSingle(A:NDArray[np.float64], v:NDArray[np.float64], f:Callable, m:int):
     # assumes v is already normalized
-    T = Lanczos(A, v, m+1)
+    T, Q = Lanczos(A, v, m)
+    # print(T)
     eval, evecs = np.linalg.eig(T)
+    # print(eval)
+    # each column of evecs is an eigenvalue, we want the first element of each of these 
+    e1 = np.zeros(m)
+    e1[1] = 1
+    tau_big = e1.T@evecs
+    tau = tau_big
+    # print(tau)
+    tau_sq = np.power(tau, 2)
+    # print(tau_sq)
+    theta = eval
+    f_eval = [f(t) for t in theta]
+    return np.dot(tau_sq, f_eval)
 
 
 # Estimates tr(f(A)) using the stochastic Lanczos quadrature method. Returns a single number. l is the number of vectors in the outter sum, m is the number of quadrature points used in each inner sum
 # Algorithm taken from Ubaru, et. al. Fast estimation of tr(f(A)) via stochastic Lanczos quadrature (2017)
-def StochLancQuad(A:NDArray[np.float64]):
-    return 0
+def StochLancQuad(A:NDArray[np.float64], f:Callable, l:int, m:int):
+    n = A.shape[0]
+    tot = 0.0
+    for i in range(l):
+        v = rademacher(n)
+        tot += LancQuadSingle(A, v, f, m)
+
+    return (n / l) * tot
+
+
