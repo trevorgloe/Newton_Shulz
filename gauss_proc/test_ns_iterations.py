@@ -34,12 +34,13 @@ def run_single_trial(seed: int, use_prev_inv_init: bool):
     y = np.sin(x * 2 * np.pi) + sig * np.random.randn(n)
 
     theta0 = np.array([0.1, 0.01])
+
     gp = GP.GPR(n, 1, "RBF", sig, use_ns=True, use_prev_inv_init=use_prev_inv_init, verbose=False)
     gp.fit(np.array([x]), y, np.array([sig * 10, 1e-2]))
 
     # with contextlib.redirect_stdout(io.StringIO()):
     result = gp.grad_dec_theta(theta0, alpha=ALPHA, max_iter=MAX_ITER, eps=EPS,
-                                   return_theta=True, return_ns_iterations=True)
+                                  return_theta=True, return_ns_iterations=True)
     theta_hist, ns_iters = result
     return theta_hist, ns_iters
 

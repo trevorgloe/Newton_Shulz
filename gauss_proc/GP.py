@@ -160,7 +160,9 @@ class GPR:
             G0 = self._last_Khat_inv.copy()
         else:
             G0 = Khat / (np.linalg.norm(Khat, 1) * np.linalg.norm(Khat, np.inf))
+
         Khati, _, n_iters = Newton_Shulz(Khat, initial_guess=G0, verbose=self.verbose)
+
         self._last_Khat_inv = Khati.copy()
         if cache_key is not None:
             self._khat_inv_cache = (cache_key.copy(), Khati.copy())
@@ -215,6 +217,7 @@ class GPR:
         self.log_(f"Running gradient descent with theta0 = {theta0}")
         self.log_(f"Using a stopping condition of ||nabla f||^2 < {eps}")
         self.log_(f"Using a step size of {alpha}")
+
         theta = np.copy(theta0) # for storing iterations
         self.set_theta(theta)
         self.ker.compute(self.X)
