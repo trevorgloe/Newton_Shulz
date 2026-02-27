@@ -18,11 +18,11 @@ import io
 import contextlib
 
 # --- Config ---
-N_TRIALS = 10
+N_TRIALS = 5
 N_POINTS = 20
 SIG = 0.01
 ALPHA = 1e-6
-MAX_ITER = 80
+MAX_ITER = 60
 EPS = 1e-5
 
 def run_single_trial(seed: int, use_prev_inv_init: bool):
@@ -34,11 +34,11 @@ def run_single_trial(seed: int, use_prev_inv_init: bool):
     y = np.sin(x * 2 * np.pi) + sig * np.random.randn(n)
 
     theta0 = np.array([0.1, 0.01])
-    gp = GP.GPR(n, 1, "RBF", sig, use_ns=True, use_prev_inv_init=use_prev_inv_init)
+    gp = GP.GPR(n, 1, "RBF", sig, use_ns=True, use_prev_inv_init=use_prev_inv_init, verbose=False)
     gp.fit(np.array([x]), y, np.array([sig * 10, 1e-2]))
 
-    with contextlib.redirect_stdout(io.StringIO()):
-        result = gp.grad_dec_theta(theta0, alpha=ALPHA, max_iter=MAX_ITER, eps=EPS,
+    # with contextlib.redirect_stdout(io.StringIO()):
+    result = gp.grad_dec_theta(theta0, alpha=ALPHA, max_iter=MAX_ITER, eps=EPS,
                                    return_theta=True, return_ns_iterations=True)
     theta_hist, ns_iters = result
     return theta_hist, ns_iters
@@ -65,6 +65,7 @@ def main():
         print(f"Trial {trial + 1}/{N_TRIALS} (seed={seed})...")
 
         # Cold start (scaled Khat as init each time)
+        print("Cold start")
         theta_c, ns_c = run_single_trial(seed, use_prev_inv_init=False)
         cold_iters_all.append(ns_c)
         cold_totals.append(sum(ns_c))
@@ -72,6 +73,7 @@ def main():
         cold_per_gd.append(ns_c)
 
         # Warm start (prev inverse as init)
+        print("Warm start")
         theta_w, ns_w = run_single_trial(seed, use_prev_inv_init=True)
         warm_iters_all.append(ns_w)
         warm_totals.append(sum(ns_w))

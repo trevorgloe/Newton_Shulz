@@ -81,7 +81,8 @@ def Newton_Shulz(A: ArrayLike, loops: int = 2000, initial_guess: ArrayLike | Non
         except (OverflowError, RuntimeWarning):
             _log(f"Newton-Schulz overflowed at iteration {i}")
             break
-
+    if (i == loops - 1):
+        _log(f"Newton_Schulz exceeded the max number of iterations and has error {current_error}")
     elapsed_time = time.perf_counter() - start_time
     _log(f"Newton_Shulz took {elapsed_time:.4f} seconds to execute.")
     return (G, allG, i)

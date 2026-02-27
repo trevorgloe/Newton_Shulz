@@ -75,7 +75,7 @@ class Kernel:
         return s1 + s2
 
 class GPR:
-    def __init__(self, n: int, d: int, kername: str, noise: float, use_ns: bool = False, use_prev_inv_init: bool = False):
+    def __init__(self, n: int, d: int, kername: str, noise: float, use_ns: bool = False, use_prev_inv_init: bool = False, verbose: bool = False):
         self.n = n # number of data samples
         self.d = d # dimension of data
         self.sig = noise # estimate for noise variance
@@ -84,6 +84,7 @@ class GPR:
         self._last_Khat_inv = None
         self._khat_inv_cache: tuple[NDArray[np.float64], NDArray[np.float64]] | None = None  # (theta, Khati)
         self.ns_iterations_list: list[int] = []  # filled during grad_dec when tracking
+        self.verbose = verbose
 
         match kername:
             case "RBF":
@@ -108,6 +109,10 @@ class GPR:
             
             case _:
                 raise TypeError("Unrecognized kernel name")
+
+    def log_(self, s, end='\n'):
+        if self.verbose:
+            print(s, end=end)
 
     # add the input data for the regression (does not train the hyperparameters, just adds input data for a given set of hyperparameters
     def add_inputs(self, x:NDArray[np.float64], y:NDArray[np.float64]):
@@ -155,7 +160,7 @@ class GPR:
             G0 = self._last_Khat_inv.copy()
         else:
             G0 = Khat / (np.linalg.norm(Khat, 1) * np.linalg.norm(Khat, np.inf))
-        Khati, _, n_iters = Newton_Shulz(Khat, initial_guess=G0, verbose=False)
+        Khati, _, n_iters = Newton_Shulz(Khat, initial_guess=G0, verbose=self.verbose)
         self._last_Khat_inv = Khati.copy()
         if cache_key is not None:
             self._khat_inv_cache = (cache_key.copy(), Khati.copy())
@@ -177,7 +182,7 @@ class GPR:
 
     # compute the derivative of the NEGATIVE log liklihood (for gradient descent optimization)
     def log_like_der(self):
-        # formula is tr( (Khati - (Khati * y)(Khati * y)^T) * dKhat/dtheta)
+        # formula is 1/2 * tr( (Khati - (Khati * y)(Khati * y)^T) * dKhat/dtheta)
         # create the derivative matrices 
         der_tens = self.ker.compute_dKdtheta(self.X) # nxnxt tensor where t is the number of parameters in theta vector
         Khat = self.ker.mat + self.sig**2 * np.eye(self.n)
@@ -190,7 +195,7 @@ class GPR:
             # term2 = 1/2 * np.trace(Khati @ der_tens[:,:,i])
             # outvec[i] = term1 - term2
             m1 = np.outer(Khati @ self.y, Khati @ self.y)
-            outvec[i] = np.trace((Khati - m1) @ der_tens[:,:,i])
+            outvec[i] = 1/2 * np.trace((Khati - m1) @ der_tens[:,:,i])
 
         return outvec
 
@@ -207,9 +212,9 @@ class GPR:
 
     # do gradient descent to find the best theta in terms of the log liklihood
     def grad_dec_theta(self, theta0, alpha:float, eps:float = 1e-5, return_theta:bool = False, return_ns_iterations:bool = False, max_iter:int = 1000):
-        print("Running gradient descent with theta0 = ", theta0)
-        print(f"Using a stopping condition of ||nabla f||^2 < {eps}")
-        print(f"Using a step size of {alpha}")
+        self.log_(f"Running gradient descent with theta0 = {theta0}")
+        self.log_(f"Using a stopping condition of ||nabla f||^2 < {eps}")
+        self.log_(f"Using a step size of {alpha}")
         theta = np.copy(theta0) # for storing iterations
         self.set_theta(theta)
         self.ker.compute(self.X)
@@ -226,12 +231,13 @@ class GPR:
         nabla = self.log_like_der()
         iter = 0
         while (np.linalg.norm(nabla) > eps):
-            print(f"Iteration {iter}")
+            self.log_(f"Iteration {iter}")
             iter += 1
             if (iter > max_iter):
                 break
-            print("theta = ", theta)
-            print("log liklihood = ", self.log_like())
+            self.log_("theta = ", end=' ')
+            self.log_(theta)
+            self.log_(f"log liklihood = {self.log_like()}")
             nabla = self.log_like_der()
             theta = theta - alpha * nabla
             self.set_theta(theta)

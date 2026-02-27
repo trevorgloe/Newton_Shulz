@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import time
 import io, contextlib
 
-np.random.seed(0)
+np.random.seed(2)
 
 n = 13
 sig = 0.01
@@ -25,8 +25,7 @@ gp_inv = GP.GPR(n, 1, "RBF", sig, use_ns=False)
 gp_inv.fit(np.array([x]), y, np.array([sig * 10, 1e-2]))
 
 t0 = time.perf_counter()
-with contextlib.redirect_stdout(io.StringIO()):
-    theta_hist_inv = gp_inv.grad_dec_theta(theta0, alpha=alpha, max_iter=max_iter, return_theta=True)
+theta_hist_inv = gp_inv.grad_dec_theta(theta0, alpha=alpha, max_iter=max_iter, return_theta=True)
 time_inv = time.perf_counter() - t0
 
 pred_inv = gp_inv.predict_aft_K(xth)
@@ -36,12 +35,11 @@ gp_ns = GP.GPR(n, 1, "RBF", sig, use_ns=True)
 gp_ns.fit(np.array([x]), y, np.array([sig * 10, 1e-2]))
 
 t0 = time.perf_counter()
-with contextlib.redirect_stdout(io.StringIO()):
-    theta_hist_ns = gp_ns.grad_dec_theta(theta0, alpha=alpha, max_iter=max_iter, return_theta=True)
+theta_hist_ns = gp_ns.grad_dec_theta(theta0, alpha=alpha, max_iter=max_iter, return_theta=True)
 time_ns = time.perf_counter() - t0
 
-with contextlib.redirect_stdout(io.StringIO()):
-    pred_ns = gp_ns.predict_aft_K(xth)
+
+pred_ns = gp_ns.predict_aft_K(xth)
 
 # --- log-likelihood traces (use exact inv for fair LL comparison) ---
 ll_inv = []
