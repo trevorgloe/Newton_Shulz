@@ -89,4 +89,25 @@ def StochLancQuad(A:NDArray[np.float64], f:Callable, l:int, m:int):
 
     return (n / l) * tot
 
+# Partial cholseky decomposition as a preconditioner to a kernel matrix
+# matrix is assumed to be symmetric
+def PartialCholseky(A:NDArray[np.float64], m:int):
+    # dont do any pivoting for now, just use the first m elements for the partition
+    n = A.shape[0]
+    A11 = A[0:m,0:m]
+    A22 = A[m:,m:]
+    A12 = A[0:m, m:]
+    A21 = np.copy(A12).T
+    L11 = np.linalg.cholesky(A11)
+    # print(L11.shape)
+    D11 = np.diag(np.diag(L11))
+    L11 = L11 @ np.linalg.inv(D11) # normalize L11 so its unit lower triangular
+    # now technically, the diagonal piece of the cholseky decomp should be D^2
+    D11 = D11@D11
+    # print(A21.shape)
+    L21 = A21 @ np.linalg.inv(L11.T) @ np.linalg.inv(D11)
+    D22 = np.diag(np.diag(A22) - np.diag(L21@D11@L21.T))
+    L = np.block([[L11, np.zeros((m, n-m))], [L21, np.eye(n-m)]])
+    D = np.block([[D11, np.zeros((m, n-m))], [np.zeros((n-m, m)), D22]])
+    return L, D
 
