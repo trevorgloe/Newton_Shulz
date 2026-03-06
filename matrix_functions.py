@@ -40,21 +40,25 @@ def direct(A: ArrayLike, b: ArrayLike) -> ArrayLike:
     return x
 
 
-def Newton_Shulz(A: ArrayLike, loops: int = 2000, initial_guess: ArrayLike | None = None, convergence_threshold: float = 1e-8) -> Tuple[ArrayLike, List[ArrayLike], int]:
+def Newton_Shulz(A: ArrayLike, loops: int = 2000, initial_guess: ArrayLike | None = None, convergence_threshold: float = 1e-8, verbose: bool = True) -> Tuple[ArrayLike, List[ArrayLike], int]:
     start_time = time.perf_counter()
     I = np.eye(A.shape[0])
-    
+
+    def _log(msg: str) -> None:
+        if verbose:
+            print(msg)
+
     # wierd logic
     if initial_guess is not None:
         # Use provided initial guess (e.g., previous inverse from B_inv_{x-1})
         G = initial_guess.copy()
-        print("Using provided initial guess for Newton-Schulz")
+        _log("Using provided initial guess for Newton-Schulz")
     else:
         # Original method: start with diagonal matrix G = diag(1/diag(A))
         # This is a simple initialization that when A is diagonally dominant
         d = np.diag(A)
         G = np.diag(np.power(d, -1))
-        print("Using diagonal initialization (original method)")
+        _log("Using diagonal initialization (original method)")
     
     allG: List[ArrayLike] = [G.copy()]
     # print("Size of A: ", A.shape)
@@ -65,21 +69,22 @@ def Newton_Shulz(A: ArrayLike, loops: int = 2000, initial_guess: ArrayLike | Non
             # Newton-Schulz iteration: G_{k+1} = G_k + (I - G_k @ A) @ G_k
             G_new = G + (I - G @ A) @ G
             if np.any(np.isnan(G_new)) or np.any(np.isinf(G_new)) or np.any(G_new > 1e20):
-                print(f"Newton-Schulz diverged at iteration {i}")
+                _log(f"Newton-Schulz diverged at iteration {i}")
                 break
             G = G_new
             allG.append(G.copy())
             # Check convergence: stop when ||A @ G - I|| < convergence_threshold
             current_error = np.linalg.norm(A @ G - I)
             if current_error < convergence_threshold:
-                print(f"Newton-Schulz converged at iteration {i} (error: {current_error:.6e} < {convergence_threshold:.2e})")
+                _log(f"Newton-Schulz converged at iteration {i} (error: {current_error:.6e} < {convergence_threshold:.2e})")
                 break
         except (OverflowError, RuntimeWarning):
-            print(f"Newton-Schulz overflowed at iteration {i}")
+            _log(f"Newton-Schulz overflowed at iteration {i}")
             break
-
+    if (i == loops - 1):
+        _log(f"Newton_Schulz exceeded the max number of iterations and has error {current_error}")
     elapsed_time = time.perf_counter() - start_time
-    print(f"Newton_Shulz took {elapsed_time:.4f} seconds to execute.")
+    _log(f"Newton_Shulz took {elapsed_time:.4f} seconds to execute.")
     return (G, allG, i)
 
 
