@@ -1,4 +1,4 @@
-# Newton_Shulz
+#Newton Schulz
 Repo for code for research into the Newton Shulz algorithm
 
 ## Generate random orthogonal matrix
