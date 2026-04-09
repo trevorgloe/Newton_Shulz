@@ -253,6 +253,8 @@ def precondition_matrix(
     ``L^{-1} @ (P @ A @ Q) @ U^{-1}``, where ``P`` and ``Q`` are the row and
     column permutation matrices returned by ``prrlu``.
     """
+    # L & U Matrices
+    #
     A_eff = np.asarray(A, dtype=float)
     if P is not None:
         A_eff = P @ A_eff
