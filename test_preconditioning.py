@@ -52,9 +52,9 @@ import ilu
 ArrayLike = np.ndarray
 
 # Global Test Settings
-DEFAULT_MAX_ITERS = 10
+DEFAULT_MAX_ITERS = 15
 DEFAULT_MATRIX_SIZE = 50
-DEFAULT_N_TRIALS = 200
+DEFAULT_N_TRIALS = 50
 DEFAULT_SEED_BASE = 2
 DEFAULT_CONVERGENCE_THRESHOLD = 1e-6
 DEFAULT_EXPLOSION_THRESHOLD = 1e10
@@ -331,7 +331,7 @@ def newton_schulz_with_ilu_precond(
     max_iters: int = DEFAULT_MAX_ITERS,
     convergence_threshold: float = DEFAULT_CONVERGENCE_THRESHOLD,
     explosion_threshold: float = DEFAULT_EXPLOSION_THRESHOLD,
-    drop_tol: float = 1e-2,
+    drop_tol: float = 1e-3,
     initial_guess_mode: int = 0,
     A_unperturbed: ArrayLike | None = None,
     initial_guess_seed: int = 0,
@@ -457,7 +457,7 @@ def _compute_method_summary(detailed_results: List[Dict[str, Any]], method_name:
 
     if total == 0:
         return {
-            "median_iters": np.nan,
+            "avg_iters": np.nan,
             "pct_converged": np.nan,
             "pct_exploded": np.nan,
             "pct_iter_limit": np.nan,
@@ -483,7 +483,7 @@ def _compute_method_summary(detailed_results: List[Dict[str, Any]], method_name:
     ]
 
     return {
-        "median_iters": float(np.median(converged_iters)) if converged_iters else np.nan,
+        "avg_iters": float(np.mean(converged_iters)) if converged_iters else np.nan,
         "pct_converged": 100.0 * len(converged) / total,
         "pct_exploded": 100.0 * len(exploded) / total,
         "pct_iter_limit": 100.0 * len(iter_limit) / total,
@@ -503,6 +503,7 @@ def _flatten_detailed_results(all_detailed_results: Dict[str, Any]) -> List[Dict
                 ("ILU Precond", "ilu"),
             ]:
                 data = trial[key]
+                cond = trial["cond_A"] if method_short == "no_precond" else data.get("cond_precond", np.nan)
                 flattened.append({
                     "matrix_name": matrix_name,
                     "trial_idx": trial_idx,
@@ -511,6 +512,7 @@ def _flatten_detailed_results(all_detailed_results: Dict[str, Any]) -> List[Dict
                     "final_error": data["final_error"],
                     "status": data["status"],
                     "errors": data["errors"],
+                    "cond": cond,
                 })
 
             prrlu_key = next(k for k in trial.keys() if "prrLU Precond" in k)
@@ -523,6 +525,7 @@ def _flatten_detailed_results(all_detailed_results: Dict[str, Any]) -> List[Dict
                 "final_error": data["final_error"],
                 "status": data["status"],
                 "errors": data["errors"],
+                "cond": data.get("cond_precond", np.nan),
             })
 
     return flattened
@@ -541,7 +544,7 @@ def _make_summary_table_rows(detailed_results: List[Dict[str, Any]]) -> List[Lis
         s = _compute_method_summary(detailed_results, m)
         rows.append([
             pretty[m],
-            f"{s['median_iters']:.3f}" if np.isfinite(s["median_iters"]) else "nan",
+            f"{s['avg_iters']:.3f}" if np.isfinite(s["avg_iters"]) else "nan",
             f"{s['pct_converged']:.1f}%",
             f"{s['pct_exploded']:.1f}%",
             f"{s['pct_iter_limit']:.1f}%",
@@ -557,12 +560,7 @@ def plot_aggregated_comparison(
     all_detailed_results: Dict[str, Any],
     save_dir: str | None = None,
 ) -> None:
-    """
-    Create a compact dashboard with:
-    1) iterations vs trial index scatter with colored average lines
-    2) converged-only convergence curves with colored median overlays
-    3) summary table of convergence outcomes
-    """
+
     flattened = _flatten_detailed_results(all_detailed_results)
     if not flattened:
         print("No detailed results available; skipping plots.")
@@ -574,115 +572,135 @@ def plot_aggregated_comparison(
         "prrlu": {"label": "prrLU", "marker": "^", "color": "C2"},
     }
 
-    fig = plt.figure(figsize=(18, 6))
-    gs = GridSpec(1, 3, width_ratios=[1.35, 1.5, 1.35], figure=fig)
-    ax_trial = fig.add_subplot(gs[0, 0])
-    ax_conv = fig.add_subplot(gs[0, 1])
-    ax_table = fig.add_subplot(gs[0, 2])
+    AXIS_SIZE = 14
+    TITLE_SIZE = 16
+    LEGEND_SIZE = 12
 
-    # Iterations vs trial index, converged runs only
-    for method_name in ["no_precond", "ilu", "prrlu"]:
+    def style_axes(ax, xlabel, ylabel, title):
+        ax.set_xlabel(xlabel, fontsize=AXIS_SIZE)
+        ax.set_ylabel(ylabel, fontsize=AXIS_SIZE)
+        ax.set_title(title, fontsize=TITLE_SIZE)
+        ax.tick_params(axis="both", labelsize=AXIS_SIZE)
+        ax.grid(True, alpha=0.25)
+
+    # ------------------------------------------------------------
+    # Plot 1 — Iterations vs Trial
+    # ------------------------------------------------------------
+    fig1, ax1 = plt.subplots(figsize=(10,7))
+
+    for method in ["no_precond","ilu","prrlu"]:
         runs = [
             r for r in flattened
-            if r.get("method") == method_name and r.get("status") == "converged"
+            if r["method"] == method and r["status"] == "converged"
         ]
         if not runs:
             continue
 
-        style = style_map[method_name]
-        xvals = [r["trial_idx"] for r in runs]
-        iters = [r["iterations"] for r in runs]
+        style = style_map[method]
 
-        ax_trial.scatter(
-            xvals,
-            iters,
+        x = [r["trial_idx"] for r in runs]
+        y = [r["iterations"] for r in runs]
+
+        ax1.scatter(
+            x,
+            y,
             label=style["label"],
             marker=style["marker"],
-            s=46,
-            alpha=0.50,
-            color=style["color"],
-            edgecolors="none",
-        )
-
-        median_iter = float(np.median(iters))
-        ax_trial.axhline(
-            median_iter,
-            linewidth=1.4,
-            linestyle="--",
-            alpha=0.95,
+            s=45,
+            alpha=0.6,
             color=style["color"],
         )
 
-    ax_trial.set_xlabel("Trial")
-    ax_trial.set_ylabel("Iterations")
-    ax_trial.set_title("Iterations vs Trial (Converged Only)")
-    ax_trial.grid(True, alpha=0.25)
-    ax_trial.legend(framealpha=0.9)
+        avg = np.mean(y)
+        ax1.axhline(avg, linestyle="--", color=style["color"], linewidth=1.5)
 
-    # Convergence curves, converged only
-    for method_name in ["no_precond", "ilu", "prrlu"]:
+    style_axes(ax1,"Trial","Iterations","Iterations vs Trial")
+    ax1.legend(fontsize=LEGEND_SIZE)
+
+    fig1.tight_layout()
+
+    if save_dir:
+        fig1.savefig(os.path.join(save_dir,"iterations_vs_trial.png"),dpi=200)
+
+    # ------------------------------------------------------------
+    # Plot 2 — Convergence Curves
+    # ------------------------------------------------------------
+    fig2, ax2 = plt.subplots(figsize=(10,7))
+
+    for method in ["no_precond","ilu","prrlu"]:
+
         runs = [
             r for r in flattened
-            if r.get("method") == method_name and r.get("status") == "converged" and r.get("errors")
+            if r["method"] == method and r["status"] == "converged"
         ]
+
         if not runs:
             continue
 
-        style = style_map[method_name]
-        color = style["color"]
+        style = style_map[method]
 
-        # Plot only a limited number of representative traces to reduce clutter.
         max_traces = 20
-        step = max(1, len(runs) // max_traces)
-        representative_runs = runs[::step][:max_traces]
+        step = max(1,len(runs)//max_traces)
+        subset = runs[::step][:max_traces]
 
-        for r in representative_runs:
+        for i,r in enumerate(subset):
+
             errs = r["errors"]
-            ax_conv.plot(
+
+            ax2.plot(
                 range(len(errs)),
                 errs,
-                linewidth=2.4,
-                alpha=0.16,
-                color=color,
+                linewidth=2,
+                alpha=0.2,
+                color=style["color"],
+                label=style["label"] if i==0 else None,
             )
 
-        max_len = max(len(r["errors"]) for r in runs)
-        padded = [r["errors"] + [r["errors"][-1]] * (max_len - len(r["errors"])) for r in runs]
-        median_curve = np.median(np.array(padded, dtype=float), axis=0)
-        ax_conv.plot(
-            range(len(median_curve)),
-            median_curve,
-            linewidth=1.8,
-            alpha=0.98,
-            color=color,
+    ax2.set_yscale("log")
+    style_axes(ax2,"Iteration",r"$||AG-I||$","Convergence Curves")
+    ax2.legend(fontsize=LEGEND_SIZE)
+
+    fig2.tight_layout()
+
+    if save_dir:
+        fig2.savefig(os.path.join(save_dir,"convergence_curves.png"),dpi=200)
+
+    # ------------------------------------------------------------
+    # Plot 3 — Condition Numbers
+    # ------------------------------------------------------------
+    fig3, ax3 = plt.subplots(figsize=(10,7))
+
+    for method in ["no_precond","ilu","prrlu"]:
+
+        runs = [r for r in flattened if r["method"] == method]
+
+        if not runs:
+            continue
+
+        style = style_map[method]
+
+        conds = [r["cond"] for r in runs if r.get("cond") is not None and np.isfinite(r["cond"])]
+
+        ax3.scatter(
+            range(len(conds)),
+            conds,
             label=style["label"],
+            marker=style["marker"],
+            s=45,
+            alpha=0.6,
+            color=style["color"],
         )
 
-    ax_conv.set_xlabel("Iteration")
-    ax_conv.set_ylabel(r"$\|AG - I\|$")
-    ax_conv.set_title("Convergence Curves (Converged Only)")
-    ax_conv.set_yscale("log")
-    ax_conv.grid(True, alpha=0.25)
-    ax_conv.legend(framealpha=0.9)
+    ax3.set_yscale("log")
 
-    # Summary table
-    ax_table.axis("off")
-    table = ax_table.table(
-        cellText=_make_summary_table_rows(flattened),
-        colLabels=["Method", "Median Iters", "% Conv", "% Expl", "% MaxIt", "% Other", "Median Final Err\n(Conv)"],
-        loc="center",
-        cellLoc="center",
-    )
-    table.auto_set_font_size(False)
-    table.set_fontsize(9)
-    table.scale(1.2, 1.8)
-    ax_table.set_title("Summary")
+    style_axes(ax3, "Trial", "Condition Number", "Condition Numbers")
+    ax3.legend(fontsize=LEGEND_SIZE)
 
-    plt.tight_layout()
+    fig3.tight_layout()
+
     if save_dir:
-        p = os.path.join(save_dir, "preconditioning_dashboard.png")
-        plt.savefig(p, dpi=150, bbox_inches="tight")
-        print(f"Saved figure to {p}")
+        fig3.savefig(os.path.join(save_dir, "condition_numbers.png"), dpi=200)
+
     plt.show()
 
 # =============================================================================
