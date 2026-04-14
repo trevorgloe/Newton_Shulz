@@ -1,8 +1,15 @@
 import os
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
 
-import matrix_functions as mf
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from functions import iterative_inverse as mf
 
 A1 = np.array([[4., 1., 0.],
                [1., 3., 1.],
@@ -111,7 +118,7 @@ def main():
     if result is not None:
         errors["A4 (13x13)"] = result
 
-    data_folder = "mike_data"
+    data_folder = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "mike_data")
     for file_name in ("B_inv_1.npy", "B_inv_2.npy"):
         matrix = np.load(os.path.join(data_folder, file_name)).squeeze()
         label = f"{file_name} (loaded)"
