@@ -31,9 +31,17 @@ Chart Explanations:
 # spectral radius of convergence,
 # only meant to be a thing between 0 and 1 perturbation
 
+import sys
+from pathlib import Path
+
 import numpy as np
 import matplotlib.pyplot as plt
-import matrix_functions as mf
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from functions import iterative_inverse as mf
 
 
 def test_perturbation_robustness(n_matrices=10, matrix_size=50, max_perturbation=1.0, n_perturbations=50):

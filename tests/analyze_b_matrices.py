@@ -1,10 +1,18 @@
+import sys
 import numpy as np
 import time
 import matplotlib.pyplot as plt
 from pathlib import Path
-import matrix_functions as mf
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from functions import iterative_inverse as mf
 
 def load_B_matrices(data_folder="B_Binv_Mike"):
+    if not Path(data_folder).is_absolute():
+        data_folder = Path(__file__).resolve().parents[1] / data_folder
     data_path = Path(data_folder)
     
     B_matrices = {}
@@ -325,8 +333,8 @@ if __name__ == "__main__":
     # ========================================================================
     # OPTIONAL: Test perturbation robustness
     # ========================================================================
-    # To run perturbation testing, use the separate PerturbationTest.py file:
-    #   python PerturbationTest.py
+    # To run perturbation testing, use:
+    #   python tests/perturbation_experiment.py
     # ========================================================================
 
 

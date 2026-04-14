@@ -31,22 +31,24 @@ Important initial-guess modes:
 from __future__ import annotations
 
 import os
+import sys
 from typing import List, Tuple, Dict, Any, Callable
+from pathlib import Path
 from matplotlib.gridspec import GridSpec
 
 import numpy as np
 
-# Use interactive backend so plt.show() opens windows when run from terminal
+# Matplotlib backend handling:
+# - In headless runs (common in CI / remote), MPLBACKEND is often "Agg".
+# - Don't attempt to force a GUI backend in that case (can crash).
 import matplotlib
-_backend = os.environ.get("MPLBACKEND", matplotlib.get_backend())
-if _backend.lower() == "agg":
-    try:
-        matplotlib.use("TkAgg")
-    except Exception:
-        pass
 import matplotlib.pyplot as plt
 
-import ilu
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from functions import preconditioners as ilu
 
 
 ArrayLike = np.ndarray
@@ -1049,7 +1051,9 @@ def run_comprehensive_multi_trial_test(
     print("PLOTTING: Convergence, Iterations (aggregated)")
     print("=" * 70)
 
-    out_dir = os.path.dirname(os.path.abspath(__file__))
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    out_dir = os.path.join(repo_root, "figures")
+    os.makedirs(out_dir, exist_ok=True)
     plot_aggregated_comparison(all_detailed_results, save_dir=out_dir)
 
     return all_avg_results, all_condition_data, all_detailed_results

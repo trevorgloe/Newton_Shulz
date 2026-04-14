@@ -1,10 +1,14 @@
+import sys
 from pathlib import Path
 import time
 
-import Matrices as M
 import numpy as np
 
-import matrix_functions as mf
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from functions import iterative_inverse as mf
 
 
 def load_matrices():
@@ -19,7 +23,7 @@ def test_newton_shulz_runtime_on_b_inv_1():
     """
     Load B_inv_1.npy, invert it using Newton-Schulz, and time the execution.
     """
-    matrix_path = Path(__file__).with_name("mike_data") / "B_inv_1.npy"
+    matrix_path = Path(__file__).resolve().parents[1] / "mike_data" / "B_inv_1.npy"
     matrix = np.load(matrix_path)
 
     start_time = time.perf_counter()

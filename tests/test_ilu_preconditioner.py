@@ -1,8 +1,13 @@
+import sys
 from pathlib import Path
 
 import numpy as np
 
-from ilu import incomplete_lu, solve_with_ilu
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from functions.preconditioners import incomplete_lu, solve_with_ilu
 
 
 def demo_small_system():
@@ -27,7 +32,7 @@ def demo_small_system():
 
 
 def demo_mike_data():
-    data_dir = Path(__file__).with_name("mike_data")
+    data_dir = Path(__file__).resolve().parents[1] / "mike_data"
     file_path = data_dir / "B_inv_1.npy"
     if not file_path.exists():
         print("\n[mike_data] Skipping: mike_data/B_inv_1.npy not found.")
