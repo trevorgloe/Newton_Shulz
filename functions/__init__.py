@@ -20,4 +20,4 @@ from .preconditioners import (
     solve_with_ilu,
 )
 from .haar import givensRot, givensRotVec, randOrth
-
+from .stoch_trace_est import STE, STE_kry
