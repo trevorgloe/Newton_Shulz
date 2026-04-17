@@ -17,7 +17,7 @@ trace_est = ste.STE(A, l=20) # assuming A has already been defined as a matrix
 ```
 The `STE(A, l)` function assumes that `A` is square. 
 
-The second estimator estimates the trace of `A^{-1}` via 
+The second estimator estimates the trace of $A^{-1}$ via 
 ```math
 \text{tr}(A^{-1}) \approx = \frac{1}{m}\sum_{j=1}^m v_j^T A^{-1} v_j
 ```
