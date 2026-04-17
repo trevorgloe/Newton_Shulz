@@ -1,6 +1,8 @@
 import numpy as np
 from numpy.typing import NDArray
 from collections.abc import Callable
+# import krylov
+import scipy.sparse.linalg as ssl
 
 # returns a rademacher distributed random vector
 def rademacher(n:int):
@@ -22,6 +24,20 @@ def STE(A:NDArray[np.float64], l:int):
     # print(tot)
     # print(n/l)
     return n *tot / l
+
+# stochastic trace estimator for A^-1 using a Hutchinson's estimator and CG for each of the linear solves
+def STE_kry(A:NDArray[np.float64], l:int, maxiter=None):
+    if maxiter is None:
+        maxiter = A.shape[0]
+
+    n = A.shape[0]
+    tot = 0.0
+    for i in range(l):
+        z = rademacher(n)
+        sol, info = ssl.cg(A, z, maxiter=maxiter)
+        tot += np.dot(z, sol)
+    
+    return n*tot / l
 
 # runs the Lanczos algorithm for computing the eigenvalues of A
 # returns T_m, to be used in the stochastic Lanczos quadrature method
