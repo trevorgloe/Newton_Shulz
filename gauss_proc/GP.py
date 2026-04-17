@@ -6,7 +6,7 @@ from typing import Callable
 from numpy.typing import NDArray
 import math
 import scipy.linalg as scil
-from matrix_functions import Newton_Shulz
+from functions.iterative_inverse import Newton_Shulz
 
 class Kernel:
     def __init__(self, fnc: Callable[[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]], float], n: int, fnc_prime: Callable[[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]], NDArray[np.float64]], theta_n: int):
