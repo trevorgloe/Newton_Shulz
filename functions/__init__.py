@@ -21,3 +21,4 @@ from .preconditioners import (
 )
 from .haar import givensRot, givensRotVec, randOrth
 from .stoch_trace_est import STE, STE_kry
+from .cg import ConjugateGradient
