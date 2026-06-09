@@ -37,3 +37,20 @@ from functions import stoch_trace_est as ste
 trace_est = ste.STE_kry(A, l=20, maxiter=10) # assuming A has already been defined as a matrix
 ```
 The `STE(A, l, maxiter)` function assumes that `A` is symmetric (required for conjugate gradient algorithm). The `maxiter` parameter caps the total number of iterations that *every* conjugate gradient call uses. 
+
+### Conjugate Gradient Method
+In [functions/cg.py](functions/cg.py) the basic conjugate gradient method is implemented. It is a method for solving 
+```math
+Ax = b
+```
+where $A\in\mathbb{R}^{n\times n}$ is a symmetric, positive-definite matrix, $x\in\mathbb{R}^n$ and $b\in\mathbb{R}^n$ are vectors. This is the very basic method, which does not include any pre-conditioning or restarting. It can be called like so 
+```python
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from functions import cg
+
+x = cg.ConjugateGradient(A, b, maxk=20) # assuming A and b have already been defined as numpy arrays
+```
+`A` and `b` must be numpy arrays. The function takes in several optional arguments: `maxk` - the maximum number of iterations, `tol` - the error tolerance before stopping, `verbose` - to toggle printing on every iteration, and `return_all_res` - to return an array of all the residuals. If `return_all_res` is toggled, then the function is called like `x, all_res = cg.ConjugateGradient(A, b, maxk=20, return_all_res=True)`. 
