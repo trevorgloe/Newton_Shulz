@@ -12,6 +12,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from functions import forward_substitution, back_substitution
+from functions import RandomlyPivotedCholesky
 
 
 # abstract class from which the different methods can inherit
@@ -91,7 +92,7 @@ class Cholesky(InverseMethod):
     This class computes the inverse via the Newton-Schulz algorithm
     The class allows for configurable preconditioners to the algorithm, current allowed preconditioners are:
         - incomplete cholesky factorization
-        - partial cholesky factorization via randomly pivoted cholesky algorithm
+        - partial cholesky factorization via randomly pivoted cholesky algorithm (uses another cholseky factorization to compute the exact inverse of the Schur complement)
 """
 class NewtonSchulz(InverseMethod):
     def __init__(self, prints = False, cache = True,
@@ -113,3 +114,23 @@ class NewtonSchulz(InverseMethod):
         # compute preconditioner 
         match self.precond:
             case "pchol":
+                I = RandomlyPivotedCholesky(K + sig**2 * np.eye(K.shape[0]), self.pc_rank)
+                # use the Woodbury matrix identity (I + LU^-1L')^-1 = I - L(U + L'*L)^-1 L'
+                L = K[:, I]
+                U = K[np.ix_(I,I)]
+                Schur = U + L.T @ L/(sig**2)
+                Linner = np.linalg.cholesky(Schur) # returns L such that L@L.T = Schur
+                Schuri = np.zeros(Schur.shape)
+                for j in range(Schur.shape[1]):
+                    e = np.zeros(Schur.shape[0])
+                    e[j] = 1.0
+                    temp = forward_substitution(Linner, e)
+                    Schuri[:,j] = back_substitution(Linner, temp)
+
+                P = 1/(sig**2)*np.eye(K.shape[0]) - 1/(sig**4) * L @ Schuri @ L.T
+
+            case "None":
+                P = np.eye(K.shape[0])
+
+            case _:
+                except(
