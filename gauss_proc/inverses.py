@@ -6,6 +6,8 @@ import numpy as np
 import sys
 from pathlib import Path
 
+from functions.iterative_inverse import Newton_Shulz
+
 # from functions.preconditioners import forward_substitution
 REPO_ROOT = Path.cwd().parent
 if str(REPO_ROOT) not in sys.path:
@@ -94,7 +96,7 @@ class Cholesky(InverseMethod):
         - incomplete cholesky factorization
         - partial cholesky factorization via randomly pivoted cholesky algorithm (uses another cholseky factorization to compute the exact inverse of the Schur complement)
 """
-class NewtonSchulz(InverseMethod):
+class NewtonSchulzInv(InverseMethod):
     def __init__(self, prints = False, cache = True,
                  precond = "None", # preconditioner, None for no preconditioner, ichol for incomplte cholesky, pchol for partial cholesky
                  pc_rank = 1, # rank of partial cholesky, if used
@@ -105,19 +107,28 @@ class NewtonSchulz(InverseMethod):
         self.precond = precond
         self.pc_rank = pc_rank
         self.ic_tol = ic_tol
+        self.prev_inv = None
 
     def computeInv(self, K : np.ndarray, sig : float):
         # check if inverse has already been computed
         if (not self.cache) or self.inv_computed:
             return
+
+        # if this is the first time we are calling the inverse method, use I for the previous inverse (initial guess)
+        if self.prev_inv is None:
+            self.prev_inv = np.eye(K.shape[0])
         
+        Khat = K + (sig**2)*np.eye(K.shape[0])
+        Khat1 = Khat @ self.prev_inv
+        K1 = Khat1 - np.eye(K.shape[0]) # Khat1 is Khat after we multiply with the initial guess, K1 is K after we've multiplied with the initial guess
         # compute preconditioner 
+        P = np.eye(K.shape[0])
         match self.precond:
             case "pchol":
-                I = RandomlyPivotedCholesky(K + sig**2 * np.eye(K.shape[0]), self.pc_rank)
+                I = RandomlyPivotedCholesky(K1, self.pc_rank)
                 # use the Woodbury matrix identity (I + LU^-1L')^-1 = I - L(U + L'*L)^-1 L'
-                L = K[:, I]
-                U = K[np.ix_(I,I)]
+                L = K1[:, I]
+                U = K1[np.ix_(I,I)]
                 Schur = U + L.T @ L/(sig**2)
                 Linner = np.linalg.cholesky(Schur) # returns L such that L@L.T = Schur
                 Schuri = np.zeros(Schur.shape)
@@ -130,7 +141,15 @@ class NewtonSchulz(InverseMethod):
                 P = 1/(sig**2)*np.eye(K.shape[0]) - 1/(sig**4) * L @ Schuri @ L.T
 
             case "None":
-                P = np.eye(K.shape[0])
+                pass
 
             case _:
-                except(
+                raise ValueError("Unrecognized preconditioner")
+
+        G0 = P @ self.prev_inv # preconditioned Khat
+        self.Khati = Newton_Shulz(Khat, initial_guess=G0, verbose=self.prints)
+
+    def vecSolve(self, K: np.ndarray, sig: float, b: np.ndarray) -> np.ndarray:
+        self.computeInv(K, sig)
+        return self.Khati @ b # once we have the inverse, just compute the matrix-vector product
+
