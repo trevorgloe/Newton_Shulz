@@ -95,10 +95,11 @@ class Cholesky(InverseMethod):
     The class allows for configurable preconditioners to the algorithm, current allowed preconditioners are:
         - incomplete cholesky factorization
         - partial cholesky factorization via randomly pivoted cholesky algorithm (uses another cholseky factorization to compute the exact inverse of the Schur complement)
+        - squared jacobi preconditioner
 """
 class NewtonSchulzInv(InverseMethod):
     def __init__(self, prints = False, cache = True,
-                 precond = "None", # preconditioner, None for no preconditioner, ichol for incomplte cholesky, pchol for partial cholesky
+                 precond = "None", # preconditioner, None for no preconditioner, ichol for incomplte cholesky, pchol for partial cholesky, jacobi for squared jacobi
                  pc_rank = 1, # rank of partial cholesky, if used
                  ic_tol = 0.0 # drop tolerance of incomplete cholesky, if used
                  ):
@@ -116,15 +117,18 @@ class NewtonSchulzInv(InverseMethod):
 
         # if this is the first time we are calling the inverse method, use I for the previous inverse (initial guess)
         if self.prev_inv is None:
+            # Kmax = np.max(K)
             self.prev_inv = np.eye(K.shape[0])
         
         Khat = K + (sig**2)*np.eye(K.shape[0])
         Khat1 = Khat @ self.prev_inv
-        K1 = Khat1 - np.eye(K.shape[0]) # Khat1 is Khat after we multiply with the initial guess, K1 is K after we've multiplied with the initial guess
+        # K1 = Khat1 - np.eye(K.shape[0]) # Khat1 is Khat after we multiply with the initial guess, K1 is K after we've multiplied with the initial guess
+        K1 = Khat1
         # compute preconditioner 
         P = np.eye(K.shape[0])
         match self.precond:
             case "pchol":
+                self.log("Using pivoted cholesky factorization")
                 I = RandomlyPivotedCholesky(K1, self.pc_rank)
                 # use the Woodbury matrix identity (I + LU^-1L')^-1 = I - L(U + L'*L)^-1 L'
                 L = K1[:, I]
@@ -140,16 +144,28 @@ class NewtonSchulzInv(InverseMethod):
 
                 P = 1/(sig**2)*np.eye(K.shape[0]) - 1/(sig**4) * L @ Schuri @ L.T
 
+            case "jacobi":
+                self.log("Using squared jacobi preconditioner")
+                D1 = np.diag(K1)
+                P = np.diag([1/(a**2) for a in D1]) # inverse of diagonal
+
             case "None":
                 pass
 
             case _:
                 raise ValueError("Unrecognized preconditioner")
 
+        # self.log("Precondioner = ")
+        # self.log(P)
+        # eig = np.linalg.eig(
         G0 = P @ self.prev_inv # preconditioned Khat
-        self.Khati = Newton_Shulz(Khat, initial_guess=G0, verbose=self.prints)
+        # eig = np.linalg.eig(G0 @ Khat)
+        # self.log(np.max(eig[0]))
+        out = Newton_Shulz(Khat, initial_guess=G0, verbose=self.prints)
+        self.Khati = out[0]
 
     def vecSolve(self, K: np.ndarray, sig: float, b: np.ndarray) -> np.ndarray:
         self.computeInv(K, sig)
+        # print(self.Khati.shape)
         return self.Khati @ b # once we have the inverse, just compute the matrix-vector product
 
