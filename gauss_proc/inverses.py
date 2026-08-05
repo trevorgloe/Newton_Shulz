@@ -101,7 +101,8 @@ class NewtonSchulzInv(InverseMethod):
     def __init__(self, prints = False, cache = True,
                  precond = "None", # preconditioner, None for no preconditioner, ichol for incomplte cholesky, pchol for partial cholesky, jacobi for squared jacobi
                  pc_rank = 1, # rank of partial cholesky, if used
-                 ic_tol = 0.0 # drop tolerance of incomplete cholesky, if used
+                 ic_tol = 0.0, # drop tolerance of incomplete cholesky, if used
+                 first_time = "np" # what to do when there is no previous inverse as the initial guess, np for numpy inverse, eye for guessing the identity, jacobi for squared jacobi
                  ):
         super().__init__(prints, cache)
         self.Khati = np.array([])
@@ -109,6 +110,7 @@ class NewtonSchulzInv(InverseMethod):
         self.pc_rank = pc_rank
         self.ic_tol = ic_tol
         self.prev_inv = None
+        self.first_time = first_time
 
     def computeInv(self, K : np.ndarray, sig : float):
         # check if inverse has already been computed
@@ -117,8 +119,22 @@ class NewtonSchulzInv(InverseMethod):
 
         # if this is the first time we are calling the inverse method, use I for the previous inverse (initial guess)
         if self.prev_inv is None:
+            self.log("No previous inverse stored")
+            match self.first_time:
+                case "np":
+                    self.log("Using numpy for first inverse")
+                    self.prev_inv = np.linalg.inv(K + (sig**2)*np.eye(K.shape[0]))
+                case "eye":
+                    self.log("Using identity for first inverse")
+                    self.prev_inv = np.eye(K.shape[0])
+                case "jacobi":
+                    self.log("Using squared jacobi for first inverse")
+                    D1 = np.diag(K)
+                    self.prev_inv = np.diag([1/(a**2) for a in D1])
+                case _:
+                    raise ValueError("Unrecognized `first_time` parameter")
             # Kmax = np.max(K)
-            self.prev_inv = np.eye(K.shape[0])
+            # self.prev_inv = np.eye(K.shape[0])
         
         Khat = K + (sig**2)*np.eye(K.shape[0])
         Khat1 = Khat @ self.prev_inv
@@ -140,7 +156,7 @@ class NewtonSchulzInv(InverseMethod):
                     e = np.zeros(Schur.shape[0])
                     e[j] = 1.0
                     temp = forward_substitution(Linner, e)
-                    Schuri[:,j] = back_substitution(Linner, temp)
+                    Schuri[:,j] = back_substitution(Linner.T, temp)
 
                 P = 1/(sig**2)*np.eye(K.shape[0]) - 1/(sig**4) * L @ Schuri @ L.T
 
@@ -159,9 +175,10 @@ class NewtonSchulzInv(InverseMethod):
         # self.log(P)
         # eig = np.linalg.eig(
         G0 = P @ self.prev_inv # preconditioned Khat
-        # eig = np.linalg.eig(G0 @ Khat)
-        # self.log(np.max(eig[0]))
-        out = Newton_Shulz(Khat, initial_guess=G0, verbose=self.prints)
+        eig = np.linalg.eig(np.eye(K.shape[0]) - G0 @ Khat)
+        self.log(np.max(eig[0]))
+        out = Newton_Shulz(Khat, initial_guess=G0, verbose=self.prints, convergence_threshold=1e-3)
+        self.prev_inv = out[0]
         self.Khati = out[0]
 
     def vecSolve(self, K: np.ndarray, sig: float, b: np.ndarray) -> np.ndarray:
