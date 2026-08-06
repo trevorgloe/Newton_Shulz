@@ -13,7 +13,7 @@ REPO_ROOT = Path.cwd().parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from functions import forward_substitution, back_substitution
+from functions import forward_substitution, back_substitution, forward_substitution_matrix, back_substitution_matrix
 from functions import RandomlyPivotedCholesky
 
 
@@ -26,6 +26,10 @@ from functions import RandomlyPivotedCholesky
 class InverseMethod(ABC):
     @abstractmethod # so implementation is required
     def vecSolve(self, K : np.ndarray, sig : float, b : np.ndarray) -> np.ndarray:
+        pass
+
+    @abstractmethod # implementation is required (returns tr(K^{-1} @ B)
+    def trInvMult(self, K : np.ndarray, sig : float, B : np.ndarray) -> float:
         pass
 
     def __init__(self, prints = False, cache = True):
@@ -60,6 +64,10 @@ class NumpyInverse(InverseMethod):
         self.computeInv(K, sig)
         return self.Ki @ b
 
+    def trInvMult(self, K: np.ndarray, sig: float, B: np.ndarray) -> float:
+        self.computeInv(K, sig)
+        return np.trace(self.Ki @ B)
+
 
 # Cholesky factorization
 """
@@ -77,6 +85,7 @@ class Cholesky(InverseMethod):
         if self.cache and (not self.inv_computed):
             self.log("Computing cholesky factorization")
             self.L = np.linalg.cholesky(K + sig**2 * np.eye(K.shape[0])) # returns L such that L@L.T = K
+            self.inv_computed = True
 
     def vecSolve(self, K : np.ndarray, sig : float, b : np.ndarray):
         self.computeL(K, sig)
@@ -88,6 +97,20 @@ class Cholesky(InverseMethod):
         x = back_substitution(self.L.T, temp)
         self.log(f"back sub has error {np.linalg.norm(self.L.T @ x - temp)}")
         return x
+
+    def trInvMult(self, K: np.ndarray, sig: float, B: np.ndarray) -> float:
+        self.computeL(K, sig)
+        temp = forward_substitution_matrix(self.L, B)
+        self.log(f"forward sub has error {np.linalg.norm(self.L @ temp - B)}")
+        # X = back_substitution_matrix(self.L.T, temp)
+        X = np.zeros(K.shape) 
+        for col in range(K.shape[1]): # do back substitution on each column
+            X[:,col] = back_substitution(self.L.T, temp[:,col])
+
+        self.log(f"back sub has error {np.linalg.norm(self.L.T @ X - temp)}")
+        # self.log(X)
+        return np.trace(X)
+
 
 # Newton-Schulz
 """
@@ -179,10 +202,15 @@ class NewtonSchulzInv(InverseMethod):
         self.log(np.max(eig[0]))
         out = Newton_Shulz(Khat, initial_guess=G0, verbose=self.prints, convergence_threshold=1e-3)
         self.prev_inv = out[0]
+        self.inv_computed = True
         self.Khati = out[0]
 
     def vecSolve(self, K: np.ndarray, sig: float, b: np.ndarray) -> np.ndarray:
         self.computeInv(K, sig)
         # print(self.Khati.shape)
         return self.Khati @ b # once we have the inverse, just compute the matrix-vector product
+
+    def trInvMult(self, K: np.ndarray, sig: float, B: np.ndarray) -> float:
+        self.computeInv(K, sig)
+        return np.trace(self.Khati @ B)
 
