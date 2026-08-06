@@ -140,6 +140,7 @@ class NewtonSchulzInv(InverseMethod):
         if (not self.cache) or self.inv_computed:
             return
 
+        self.log("Computing inverse via Newton-Schulz method")
         # if this is the first time we are calling the inverse method, use I for the previous inverse (initial guess)
         if self.prev_inv is None:
             self.log("No previous inverse stored")
@@ -199,7 +200,7 @@ class NewtonSchulzInv(InverseMethod):
         # eig = np.linalg.eig(
         G0 = P @ self.prev_inv # preconditioned Khat
         eig = np.linalg.eig(np.eye(K.shape[0]) - G0 @ Khat)
-        self.log(np.max(eig[0]))
+        self.log(eig[0])
         out = Newton_Shulz(Khat, initial_guess=G0, verbose=self.prints, convergence_threshold=1e-3)
         self.prev_inv = out[0]
         self.inv_computed = True
