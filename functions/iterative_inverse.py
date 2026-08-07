@@ -68,6 +68,7 @@ def Newton_Shulz(A: ArrayLike, loops: int = 2000, initial_guess: ArrayLike | Non
             G = G_new
             allG.append(G.copy())
             current_error = np.linalg.norm(A @ G - I)
+            _log(f"Current error = {current_error}")
             if current_error < convergence_threshold:
                 _log(f"Newton-Schulz converged at iteration {i} (error: {current_error:.6e} < {convergence_threshold:.2e})")
                 break
@@ -185,6 +186,7 @@ def Newton_Shulz(
             G = G_new
             allG.append(G.copy())
             current_error = np.linalg.norm(A @ G - I)
+            _log(f"Current error = {current_error}")
             if current_error < convergence_threshold:
                 _log(
                     f"Newton-Schulz converged at iteration {i} "

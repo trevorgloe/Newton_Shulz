@@ -7,6 +7,7 @@ from numpy.typing import NDArray
 import math
 import scipy.linalg as scil
 from functions.iterative_inverse import Newton_Shulz
+from inverses import *
 
 class Kernel:
     def __init__(self, fnc: Callable[[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]], float], n: int, fnc_prime: Callable[[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]], NDArray[np.float64]], theta_n: int):
@@ -75,11 +76,11 @@ class Kernel:
         return s1 + s2
 
 class GPR:
-    def __init__(self, n: int, d: int, kername: str, noise: float, use_ns: bool = False, use_prev_inv_init: bool = False, verbose: bool = False):
+    def __init__(self, n: int, d: int, kername: str, noise: float, inv_method : InverseMethod, use_prev_inv_init: bool = True, verbose: bool = False):
         self.n = n # number of data samples
         self.d = d # dimension of data
         self.sig = noise # estimate for noise variance
-        self.use_ns = use_ns
+        self.inv = inv_method
         self.use_prev_inv_init = use_prev_inv_init  # warm-start: use prev iteration's inverse as NS init
         self._last_Khat_inv = None
         self._khat_inv_cache: tuple[NDArray[np.float64], NDArray[np.float64]] | None = None  # (theta, Khati)
@@ -114,7 +115,7 @@ class GPR:
         if self.verbose:
             print(s, end=end)
 
-    # add the input data for the regression (does not train the hyperparameters, just adds input data for a given set of hyperparameters
+    # add the input data for the regression (does not train the hyperparameters, just adds input data for a given set of hyperparameters)
     def add_inputs(self, x:NDArray[np.float64], y:NDArray[np.float64]):
         if (x.shape[0] == self.n and x.shape[1] == self.d):
             self.X = x.T
@@ -143,32 +144,32 @@ class GPR:
         self.add_inputs(x, y)
         self.create_K()
 
-    def _get_Khat_inv(self, Khat: NDArray[np.float64], track_iters: bool = False, cache_key: NDArray[np.float64] | None = None) -> NDArray[np.float64]:
-        """Compute Khat^{-1} via np.linalg.inv or Newton-Schulz. Optionally track NS iterations.
-        When cache_key is provided and matches _khat_inv_cache, returns cached inverse (avoids redundant NS calls)."""
-        if not self.use_ns:
-            return np.linalg.inv(Khat)
-        # Check cache to avoid redundant NS for same Khat (e.g. log_like and log_like_der in same GD step)
-        if cache_key is not None and self._khat_inv_cache is not None and np.allclose(cache_key, self._khat_inv_cache[0]):
-            if track_iters:
-                self.ns_iterations_list.append(0)  # cached, no NS iterations
-            return self._khat_inv_cache[1].copy()
-        # Newton-Schulz: choose initial guess
-        # First call (or cold start): use scaled Khat same as identity-like cold init.
-        # Warm start: use inverse from prior GD iteration when available.
-        if self.use_prev_inv_init and self._last_Khat_inv is not None:
-            G0 = self._last_Khat_inv.copy()
-        else:
-            G0 = Khat / (np.linalg.norm(Khat, 1) * np.linalg.norm(Khat, np.inf))
-
-        Khati, _, n_iters = Newton_Shulz(Khat, initial_guess=G0, verbose=self.verbose)
-
-        self._last_Khat_inv = Khati.copy()
-        if cache_key is not None:
-            self._khat_inv_cache = (cache_key.copy(), Khati.copy())
-        if track_iters:
-            self.ns_iterations_list.append(n_iters)
-        return Khati
+    # def _get_Khat_inv(self, Khat: NDArray[np.float64], track_iters: bool = False, cache_key: NDArray[np.float64] | None = None) -> NDArray[np.float64]:
+    #     """Compute Khat^{-1} via np.linalg.inv or Newton-Schulz. Optionally track NS iterations.
+    #     When cache_key is provided and matches _khat_inv_cache, returns cached inverse (avoids redundant NS calls)."""
+    #     if not self.use_ns:
+    #         return np.linalg.inv(Khat)
+    #     # Check cache to avoid redundant NS for same Khat (e.g. log_like and log_like_der in same GD step)
+    #     if cache_key is not None and self._khat_inv_cache is not None and np.allclose(cache_key, self._khat_inv_cache[0]):
+    #         if track_iters:
+    #             self.ns_iterations_list.append(0)  # cached, no NS iterations
+    #         return self._khat_inv_cache[1].copy()
+    #     # Newton-Schulz: choose initial guess
+    #     # First call (or cold start): use scaled Khat same as identity-like cold init.
+    #     # Warm start: use inverse from prior GD iteration when available.
+    #     if self.use_prev_inv_init and self._last_Khat_inv is not None:
+    #         G0 = self._last_Khat_inv.copy()
+    #     else:
+    #         G0 = Khat / (np.linalg.norm(Khat, 1) * np.linalg.norm(Khat, np.inf))
+    #
+    #     Khati, _, n_iters = Newton_Shulz(Khat, initial_guess=G0, verbose=self.verbose)
+    #
+    #     self._last_Khat_inv = Khati.copy()
+    #     if cache_key is not None:
+    #         self._khat_inv_cache = (cache_key.copy(), Khati.copy())
+    #     if track_iters:
+    #         self.ns_iterations_list.append(n_iters)
+    #     return Khati
 
     # predict (after K has already been made)
     def predict_aft_K(self, x:NDArray[np.float64]):
@@ -177,9 +178,11 @@ class GPR:
             # print(x.shape)
         # assumes that K and X have already been initialized
         K_star =self.ker.compute_asym(self.X, x)
-        Khat = self.ker.mat + self.sig**2 * np.eye(self.n)
-        Khati = self._get_Khat_inv(Khat)
-        return K_star.T @ Khati @ self.y
+        # Khat = self.ker.mat + self.sig**2 * np.eye(self.n)
+        # Khati = self._get_Khat_inv(Khat)
+        ynew = self.inv.vecSolve(self.ker.mat, self.sig, self.y)
+        # return K_star.T @ Khati @ self.y
+        return K_star.T @ ynew
 
 
     # compute the derivative of the NEGATIVE log liklihood (for gradient descent optimization)
@@ -188,7 +191,7 @@ class GPR:
         # create the derivative matrices 
         der_tens = self.ker.compute_dKdtheta(self.X) # nxnxt tensor where t is the number of parameters in theta vector
         Khat = self.ker.mat + self.sig**2 * np.eye(self.n)
-        Khati = self._get_Khat_inv(Khat, track_iters=getattr(self, '_track_ns_iters', False), cache_key=self.ker.theta)
+        # Khati = self._get_Khat_inv(Khat, track_iters=getattr(self, '_track_ns_iters', False), cache_key=self.ker.theta)
 
         t = len(self.ker.theta)
         outvec = np.zeros(t)
@@ -196,8 +199,14 @@ class GPR:
             # term1 = 1/2 * self.y.T @ Khati @ der_tens[:,:,i] @ Khati @ self.y
             # term2 = 1/2 * np.trace(Khati @ der_tens[:,:,i])
             # outvec[i] = term1 - term2
-            m1 = np.outer(Khati @ self.y, Khati @ self.y)
-            outvec[i] = 1/2 * np.trace((Khati - m1) @ der_tens[:,:,i])
+            # m1 = np.outer(Khati @ self.y, Khati @ self.y)
+            ynew = self.inv.vecSolve(self.ker.mat, self.sig, self.y)
+            # t1 = 1/2 * ynew.T @ der_tens[:,:,i] @ ynew
+            w = der_tens[:,:,i] @ ynew
+            t1 = 1/2 * np.dot(ynew, w)
+            t2 = 1/2 * self.inv.trInvMult(self.ker.mat, self.sig, der_tens[:,:,i])
+            # outvec[i] = 1/2 * np.trace((Khati - m1) @ der_tens[:,:,i])
+            outvec[i] = t1 - t2
 
         return outvec
 
@@ -205,9 +214,11 @@ class GPR:
     def log_like(self):
         # formula is -1/2 * (y^T * Khati * y + tr(log(Khat)) + n*log(2pi)
         Khat = self.ker.mat + self.sig**2 * np.eye(self.n)
-        Khati = self._get_Khat_inv(Khat, track_iters=getattr(self, '_track_ns_iters', False), cache_key=self.ker.theta)
+        # Khati = self._get_Khat_inv(Khat, track_iters=getattr(self, '_track_ns_iters', False), cache_key=self.ker.theta)
         logKhat = scil.logm(Khat)
-        term1 = self.y.T @ Khati @ self.y 
+        # term1 = self.y.T @ Khati @ self.y 
+        ynew = self.inv.vecSolve(self.ker.mat, self.sig, self.y)
+        term1 = np.dot(self.y, ynew)
         term2 = np.trace(logKhat) 
         term3 = self.n*np.log(2*np.pi)
         return -1/2 * (term1 + term2 + term3)
@@ -224,11 +235,11 @@ class GPR:
         all_theta = []
         all_theta.append(theta)
 
-        if return_ns_iterations and self.use_ns:
-            self._track_ns_iters = True
-            self.ns_iterations_list = []
-            self._last_Khat_inv = None
-            self._khat_inv_cache = None
+        # if return_ns_iterations and self.use_ns:
+        #     self._track_ns_iters = True
+        #     self.ns_iterations_list = []
+        #     self._last_Khat_inv = None
+        #     self._khat_inv_cache = None
 
         nabla = np.zeros(self.ker.theta.shape)
         nabla = self.log_like_der()
@@ -240,25 +251,28 @@ class GPR:
                 break
             self.log_("theta = ", end=' ')
             self.log_(theta)
+            eig = np.linalg.eig(self.sig**2 * np.eye(self.ker.mat.shape[0]) + self.ker.mat)
+            self.log_(eig[0])
             self.log_(f"log liklihood = {self.log_like()}")
             nabla = self.log_like_der()
             theta = theta - alpha * nabla
             self.set_theta(theta)
             self.ker.compute(self.X)
-            self._khat_inv_cache = None  # invalidate cache when theta changes
+            # self._khat_inv_cache = None  # invalidate cache when theta changes
+            self.inv.invalidateInverse()
 
             if return_theta:
                 all_theta.append(theta)
 
-        if return_ns_iterations and self.use_ns:
-            self._track_ns_iters = False
+        # if return_ns_iterations and self.use_ns:
+        #     self._track_ns_iters = False
         print("Optimization complete")
         if return_theta:
-            if return_ns_iterations and self.use_ns:
-                return all_theta, self.ns_iterations_list
+            # if return_ns_iterations and self.use_ns:
+            #     return all_theta, self.ns_iterations_list
             return all_theta
-        if return_ns_iterations and self.use_ns:
-            return self.ns_iterations_list
+        # if return_ns_iterations and self.use_ns:
+        #     return self.ns_iterations_list
         return None
 
         
