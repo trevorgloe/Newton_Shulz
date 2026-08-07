@@ -113,4 +113,3 @@ class NewtonSchulz(InverseMethod):
         # compute preconditioner 
         match self.precond:
             case "pchol":
-
