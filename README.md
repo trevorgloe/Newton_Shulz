@@ -54,3 +54,25 @@ from functions import cg
 x = cg.ConjugateGradient(A, b, maxk=20) # assuming A and b have already been defined as numpy arrays
 ```
 `A` and `b` must be numpy arrays. The function takes in several optional arguments: `maxk` - the maximum number of iterations, `tol` - the error tolerance before stopping, `verbose` - to toggle printing on every iteration, and `return_all_res` - to return an array of all the residuals. If `return_all_res` is toggled, then the function is called like `x, all_res = cg.ConjugateGradient(A, b, maxk=20, return_all_res=True)`. 
+
+### Perturbation Testing Module
+Tests how much you can perturb a matrix before Newton-Schulz breaks down when using the original inverse as an initial guess.
+
+test_perturbation_robustness(n_matrices, matrix_size, max_perturbation, n_perturbations)
+Sweeps perturbation scale x from 0 to max_perturbation, running Newton-Schulz on R + x·P with R⁻¹ as the initial guess. Returns a list of dicts (one per matrix) with condition_number, threshold (largest x that still converged), and convergence_data (per-x results including converged, iterations, final_error, and cond_perturbed).
+```python
+pythonresults = pt.test_perturbation_robustness(
+    n_matrices=100, matrix_size=50, max_perturbation=1.0, n_perturbations=100
+)
+```
+
+test_norm_perturbation_theory(n_matrices, matrix_size)
+Tests whether the classical guarantee — $‖E‖ < 1$ means convergence — actually holds in practice. Both $R$ and $P$ are normalized $(‖R‖ = ‖P‖ = 1)$ so that $‖E‖ = ε$ exactly. Samples points on both sides of $ε = 1$, then does a 15-iteration binary search to pin down the exact divergence boundary. Each result dict includes norm_E, converged, iterations, condition_number, spectral_radius $ρ(ε·P·A⁻¹)$, and test_type.
+```python
+pythonresults = pt.test_norm_perturbation_theory(n_matrices=100, matrix_size=50)
+```
+
+### Orthogonal Perturbation Direction Usage
+To remove P's singular value distribution from the picture and isolate the effect of perturbation magnitude alone, swap in a Haar-distributed orthogonal matrix for the default random Gaussian P:
+pythonP = Haar.randOrth(matrix_size)  # Orthogonal matrices have condition number 1 by construction
+
