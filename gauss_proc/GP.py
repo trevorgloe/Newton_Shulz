@@ -66,6 +66,7 @@ class Kernel:
                 
                 derivs = self.fnc_p(x[:,i], x[:,j], self.theta)
                 outtens[i,j,:] = derivs
+                outtens[j,i,:] = derivs
 
         return outtens
 
@@ -206,7 +207,7 @@ class GPR:
             t1 = 1/2 * np.dot(ynew, w)
             t2 = 1/2 * self.inv.trInvMult(self.ker.mat, self.sig, der_tens[:,:,i])
             # outvec[i] = 1/2 * np.trace((Khati - m1) @ der_tens[:,:,i])
-            outvec[i] = t1 - t2
+            outvec[i] = -(t1 - t2)
 
         return outvec
 
