@@ -3,6 +3,7 @@
 """
 
 import numpy as np
+import functions.preconditioners as pre
 
 """
     randomly pivoted cholseky (RPC) computes the partial cholesky factorization (nystrom approximation) of given matrix, using the random pivoting strategy
@@ -46,3 +47,35 @@ def RidgewPartialChol(mu : np.float64, A : np.ndarray, I, b : np.ndarray):
     x = np.linalg.solve(U + L.T@L/mu, bhat)
     b2 = L@x / (mu**2)
     return b1 - b2
+
+"""
+    Vecchia approximation via the conventional algorithm. Taken from Webber et. al, "Everything is Vecchia"
+    Computes a factored inverse cholesky approximation to A, of the form A=C^-1 D C^-* where the non-zero off-digonal indices of C are given by S[i]. 
+    A is a positive definition matrix, and S[i] is a list of ints describing the non-zero off-diagonal elements of C
+"""
+def Vecchia(A : np.ndarray, S : list):
+    n = A.shape[0]
+    C = np.eye(n)
+    D = np.zeros((n,n))
+    I = np.eye(n)
+    for i in range(n):
+        p = np.hstack([I[:,S[i]], I[:,[i]]])
+        temp_p = A@p
+        bigM = p.T @ temp_p
+        print(bigM.shape)
+        M = bigM[:len(S[i]), :len(S[i])]
+        print(M)
+        # v = np.squeeze(bigM[:, len(S[i])])
+        v = bigM[:len(S[i]), len(S[i])]
+        print(v)
+        Ml = np.linalg.cholesky(M)
+        temp = pre.back_substitution(Ml.T, -v)
+        x = pre.forward_substitution(Ml, temp)
+        # print(x)
+        C[i,S[i]] = x.T
+        D[i,i] = bigM[len(S[i]), len(S[i])] + np.dot(x, v)
+
+    return C, D
+
+
+

@@ -1,6 +1,5 @@
 """Organized numerical methods package."""
 
-from functions.spd_precondioners import RidgewPartialChol
 from .iterative_inverse import (
     Gauss_Seidel,
     Newton_Shulz,
@@ -25,5 +24,6 @@ from .stoch_trace_est import STE, STE_kry
 from .cg import ConjugateGradient
 from .spd_precondioners import (
     RandomlyPivotedCholesky,
-    RidgewPartialChol
+    RidgewPartialChol,
+    Vecchia
 )
