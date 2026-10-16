@@ -27,3 +27,7 @@ from .spd_precondioners import (
     RandomlyPivotedCholesky,
     RidgewPartialChol
 )
+
+from .import_openML_data import (
+    download_and_mat
+)
